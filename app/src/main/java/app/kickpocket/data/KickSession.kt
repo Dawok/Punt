@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonElement
@@ -82,6 +84,16 @@ class KickSession(context: Context) {
     suspend fun isFollowing(slug: String): Boolean {
         checkSignedIn()
         return FollowRequests.status(request(FollowRequests.url(slug, "me")))
+    }
+
+    suspend fun emotes(slug: String): Map<String, Emote> = coroutineScope {
+        checkSignedIn()
+        require(slug == ChannelInput.normalize(slug))
+        val access = async { EmoteMenu.channelAccess(request(FollowRequests.url(slug, "me"))) }
+        val catalog = async { request("https://kick.com/emotes/$slug") }
+        val groups = catalog.await() as? kotlinx.serialization.json.JsonArray
+            ?: throw IOException("Kick returned an unexpected account emote list.")
+        KickParser.nativeEmotes(groups, currentSlug = slug, authenticated = true, channelAccess = access.await())
     }
 
     suspend fun setFollowing(slug: String, following: Boolean) {
@@ -184,7 +196,7 @@ internal object SessionRequests {
     fun chatBody(content: String, emotes: Map<String, Emote>): String {
         // Kick's native emotes use markup; 7TV aliases remain ordinary words on the wire.
         val encoded = Regex("\\S+").replace(content) { match ->
-            val emote = emotes[match.value]
+            val emote = emotes[match.value]?.takeIf { it.usable }
             val nativeId = emote?.id?.takeIf { it.startsWith("kick:") }?.removePrefix("kick:")
             if (!nativeId.isNullOrEmpty() && nativeId.all(Char::isDigit)) "[emote:$nativeId:${emote.name}]" else match.value
         }

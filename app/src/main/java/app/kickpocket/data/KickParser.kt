@@ -74,13 +74,27 @@ object KickParser {
         )
     }.toMap()
 
-    fun nativeEmotes(root: JsonElement): Map<String, Emote> {
+    fun nativeEmotes(root: JsonElement, currentSlug: String? = null, authenticated: Boolean = false, channelAccess: Boolean = false): Map<String, Emote> {
         val groups = root as? kotlinx.serialization.json.JsonArray ?: return emptyMap()
-        return groups.flatMap { it.asObject()?.array("emotes") ?: emptyList() }.mapNotNull { item ->
-            val emote = item.asObject() ?: return@mapNotNull null
-            val id = emote.text("id") ?: return@mapNotNull null
-            val name = emote.text("name") ?: return@mapNotNull null
-            name to nativeEmote(id, name)
+        return groups.flatMap { item ->
+            val group = item.asObject() ?: return@flatMap emptyList()
+            val collectible = group.text("name") in setOf("Collectibles", "Collectables")
+            val channel = group.obj("user") != null || group.text("slug") != null
+            val current = currentSlug != null && group.text("slug") == currentSlug
+            group.array("emotes").mapNotNull { item ->
+                val emote = item.asObject() ?: return@mapNotNull null
+                val id = emote.text("id") ?: return@mapNotNull null
+                val name = emote.text("name") ?: return@mapNotNull null
+                val subscriberOnly = emote.flag("subscribers_only")
+                val access = authenticated && channel && (if (current) channelAccess else true)
+                name to nativeEmote(id, name).copy(
+                    kind = if (collectible) EmoteKind.Collectible else if (channel) EmoteKind.Channel else EmoteKind.General,
+                    usable = if (collectible) authenticated else !subscriberOnly || access,
+                    preferred = if (collectible) authenticated else access,
+                    accountScoped = collectible || (channel && !current && authenticated),
+                    requiresSubscription = subscriberOnly,
+                )
+            }
         }.toMap()
     }
 

@@ -37,6 +37,7 @@ internal fun ChatComposer(
     onSend: (String) -> Unit,
     onLogin: () -> Unit,
     onPickerVisibility: (Boolean) -> Unit = {},
+    emoteUsage: Map<String, Long> = emptyMap(),
 ) {
     var draft by rememberSaveable(channelKey, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var handledSent by rememberSaveable(channelKey) { mutableLongStateOf(send.sent) }
@@ -86,7 +87,7 @@ internal fun ChatComposer(
             }
         }
     }
-    if (visible) EmotePicker(emotes, animatedEmotes,
+    if (visible) EmotePicker(emotes, animatedEmotes, emoteUsage,
         onChoose = { alias ->
             val insertion = insertEmote(draft.text, draft.selection.start, draft.selection.end, alias)
             if (insertion != null) {

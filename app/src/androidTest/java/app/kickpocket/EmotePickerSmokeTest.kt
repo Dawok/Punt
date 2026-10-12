@@ -6,6 +6,11 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.TextRange
 import app.kickpocket.data.Emote
+import app.kickpocket.data.EmoteKind
+import app.kickpocket.data.PreferenceStore
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.test.platform.app.InstrumentationRegistry
 import app.kickpocket.ui.ChatComposer
 import app.kickpocket.ui.PuntTheme
 import org.junit.Assert.*
@@ -20,6 +25,48 @@ class EmotePickerSmokeTest {
         "Wink" to Emote("kick:124", "Wink", image),
         "Alias" to Emote("seven-tv-id", "Alias", image),
     )
+
+    @Test fun ownedGroupsAndFrequentEmotesLeadTheMenuAndLockedEmotesAreHidden() {
+        val ranked = mapOf(
+            "Collect" to Emote("kick:1", "Collect", image, kind = EmoteKind.Collectible, preferred = true),
+            "Sub" to Emote("kick:2", "Sub", image, kind = EmoteKind.Channel, preferred = true),
+            "Locked" to Emote("kick:3", "Locked", image, kind = EmoteKind.Channel, usable = false),
+            "Frequent" to Emote("7tv:1", "Frequent", image),
+            "Rare" to Emote("7tv:2", "Rare", image),
+        )
+        compose.setContent {
+            PuntTheme { ChatComposer("channel", true, false, ranked, false, ChatSendState(), {}, {},
+                emoteUsage = mapOf("7tv:1|Frequent" to 10L, "7tv:2|Rare" to 1L)) }
+        }
+        compose.onNodeWithContentDescription("Open emote menu").performClick()
+        compose.onNodeWithText("Collectibles").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Insert Collect").assertIsDisplayed()
+        compose.onNodeWithText("Channel emotes").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Insert Sub").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Insert Locked").assertDoesNotExist()
+        compose.onNodeWithText("7TV").performClick()
+        compose.onNodeWithText("Most used").assertIsDisplayed()
+        val frequent = compose.onNodeWithContentDescription("Insert Frequent").fetchSemanticsNode().boundsInRoot
+        val rare = compose.onNodeWithContentDescription("Insert Rare").fetchSemanticsNode().boundsInRoot
+        assertTrue(frequent.top < rare.top || frequent.left < rare.left)
+        compose.onNodeWithContentDescription("Insert Frequent").performClick()
+        compose.onNodeWithTag("chat-draft").assertTextEquals("Frequent ")
+    }
+
+    @Test fun usagePreferencesSurviveOpeningANewStore() {
+        val context = object : ContextWrapper(InstrumentationRegistry.getInstrumentation().targetContext) {
+            override fun getSharedPreferences(name: String, mode: Int) = super.getSharedPreferences("emote-usage-test", mode)
+        }
+        val storage = context.getSharedPreferences("preferences", Context.MODE_PRIVATE)
+        storage.edit().clear().commit()
+        try {
+            val store = PreferenceStore(context)
+            store.recordEmotes("Alias Alias Native", catalog)
+            val restored = PreferenceStore(context)
+            assertEquals(2L, restored.preferences.value.emoteUsage["seven-tv-id|Alias"])
+            assertEquals(1L, restored.preferences.value.emoteUsage["kick:123|Native"])
+        } finally { storage.edit().clear().commit() }
+    }
 
     @Test fun selectionsOnlyEditDraftUntilSendAndFailedSendKeepsIt() {
         val send = mutableStateOf(ChatSendState())

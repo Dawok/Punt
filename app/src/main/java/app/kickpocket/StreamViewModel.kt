@@ -10,6 +10,7 @@ import app.kickpocket.data.ChatConnection
 import app.kickpocket.data.ChatEvent
 import app.kickpocket.data.ChatMessage
 import app.kickpocket.data.Emote
+import app.kickpocket.data.EmoteMenu
 import app.kickpocket.data.KickChannel
 import app.kickpocket.player.PlayerController
 import java.io.IOException
@@ -65,11 +66,14 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         val channel = mutable.value.channel ?: return
         if (channel.isDemo || mutableSend.value.sending || content.isBlank()) return
         val requestGeneration = generation
+        val accountId = account.value.account?.id
+        val messageEmotes = mutable.value.emotes
         mutableSend.update { it.copy(sending = true, error = null) }
         sendJob = viewModelScope.launch {
             try {
-                app.session.send(channel.chatroomId, content, mutable.value.emotes)
+                app.session.send(channel.chatroomId, content, messageEmotes)
                 if (generation == requestGeneration) mutableSend.update { it.copy(sending = false, sent = it.sent + 1) }
+                if (account.value.account?.id == accountId) runCatching { app.preferences.recordEmotes(content, messageEmotes) }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
                 if (generation == requestGeneration) mutableSend.update { it.copy(sending = false, error = error.message ?: "Could not send. Your message is still in the composer.") }
@@ -79,6 +83,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
 
     private var loadJob: Job? = null
     private var emoteJob: Job? = null
+    private var emoteRevision = 0L
     private var chatJob: Job? = null
     private var refreshJob: Job? = null
     private var buffer = ChatBuffer()
@@ -86,7 +91,22 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     @Volatile private var generation = 0L
 
     init {
-        viewModelScope.launch { account.collect { selectFollowTarget() } }
+        viewModelScope.launch {
+            var previousAccountId: Long? = null
+            account.collect {
+                selectFollowTarget()
+                if (it.account?.id != previousAccountId) {
+                    previousAccountId = it.account?.id
+                    emoteRevision++
+                    emoteJob?.cancel()
+                    mutable.update { state -> state.copy(emotes = EmoteMenu.withoutAccount(state.emotes)) }
+                    mutable.value.channel?.takeUnless { channel -> channel.isDemo }?.let { channel ->
+                        val requestGeneration = generation
+                        emoteJob = viewModelScope.launch { loadEmotes(channel, requestGeneration) }
+                    }
+                }
+            }
+        }
         // Network callbacks reduce messages off the main thread. Publish at most 10 times/sec.
         viewModelScope.launch {
             var lastBuffer = buffer
@@ -153,6 +173,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun reset() {
         generation++
+        emoteRevision++
         follows.select(null)
         sendJob?.cancel(); sendJob = null
         mutableSend.value = ChatSendState()
@@ -261,8 +282,20 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun loadEmotes(channel: KickChannel, requestGeneration: Long) {
+        val revision = ++emoteRevision
+        val accountId = account.value.account?.id
+        fun current() = generation == requestGeneration && emoteRevision == revision && account.value.account?.id == accountId
         val catalog = repository.emotes(channel)
-        if (generation == requestGeneration) mutable.update { it.copy(emotes = catalog.emotes, emoteWarnings = catalog.warnings) }
+        if (!current()) return
+        mutable.update { it.copy(emotes = catalog.emotes, emoteWarnings = catalog.warnings) }
+        if (accountId == null) return
+        try {
+            val owned = app.session.emotes(channel.slug)
+            if (current()) mutable.update { it.copy(emotes = EmoteMenu.merge(catalog.emotes, owned)) }
+        } catch (error: CancellationException) { throw error }
+        catch (_: Exception) {
+            if (current()) mutable.update { it.copy(emoteWarnings = catalog.warnings + "Account emotes are unavailable. Reopen the channel to retry.") }
+        }
     }
 
     fun animatedEmotes(enabled: Boolean) = app.preferences.update { it.copy(animatedEmotes = enabled) }

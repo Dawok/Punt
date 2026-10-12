@@ -14,6 +14,7 @@ class PreferenceStore(context: Context) {
 
     fun update(transform: (AppPreferences) -> AppPreferences) {
         val value = transform(mutable.value).let { it.copy(chatFontSize = it.chatFontSize.coerceIn(12, 20)) }
+        if (value == mutable.value) return
         mutable.value = value
         storage.edit { putString("preferences", AppJson.encodeToString(value)) }
     }
@@ -21,6 +22,10 @@ class PreferenceStore(context: Context) {
     fun remember(channel: KickChannel) = update {
         val recent = RecentChannel(channel.slug, channel.displayName, channel.avatarUrl)
         it.copy(recentChannels = (listOf(recent) + it.recentChannels.filter { old -> old.slug != channel.slug }).take(12))
+    }
+
+    fun recordEmotes(content: String, emotes: Map<String, Emote>) = update {
+        it.copy(emoteUsage = EmoteMenu.record(it.emoteUsage, content, emotes))
     }
 }
 

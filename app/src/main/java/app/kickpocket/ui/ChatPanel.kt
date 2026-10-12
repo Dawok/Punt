@@ -118,7 +118,7 @@ fun ChatPanel(
                 verticalArrangement = Arrangement.spacedBy(9.dp, Alignment.Bottom),
             ) {
                 items(messages.asReversed(), key = { it.id }, contentType = { "message" }) { message ->
-                    ChatRow(message, emotes, preferences)
+                    ChatRow(message, emotes, preferences.chatFontSize, preferences.animatedEmotes)
                 }
             }
             if (!following && messages.isNotEmpty()) {
@@ -129,7 +129,7 @@ fun ChatPanel(
                 }
             }
         }
-        SessionChatComposer(viewModel, sample, emotes, preferences.animatedEmotes, onLogin, onPickerVisibility)
+        SessionChatComposer(viewModel, sample, emotes, preferences.animatedEmotes, preferences.emoteUsage, onLogin, onPickerVisibility)
     }
 }
 
@@ -139,6 +139,7 @@ private fun SessionChatComposer(
     sample: Boolean,
     emotes: Map<String, Emote>,
     animatedEmotes: Boolean,
+    emoteUsage: Map<String, Long>,
     onLogin: () -> Unit,
     onPickerVisibility: (Boolean) -> Unit,
 ) {
@@ -146,7 +147,7 @@ private fun SessionChatComposer(
     val send by viewModel.sendState.collectAsStateWithLifecycle()
     val stream by viewModel.state.collectAsStateWithLifecycle()
     ChatComposer(stream.channel?.slug, account.account != null, sample, emotes, animatedEmotes, send,
-        viewModel::send, onLogin, onPickerVisibility)
+        viewModel::send, onLogin, onPickerVisibility, emoteUsage)
 }
 
 @Composable
@@ -170,10 +171,9 @@ private fun ConnectionLabel(connection: ChatConnection, sample: Boolean) {
 }
 
 @Composable
-private fun ChatRow(message: ChatMessage, emotes: Map<String, Emote>, preferences: AppPreferences) {
+private fun ChatRow(message: ChatMessage, emotes: Map<String, Emote>, size: Int, animatedEmotes: Boolean) {
     val tokens = remember(message.content, emotes) { ChatTokenizer.tokenize(message.content, emotes) }
     val usernameColor = remember(message.color) { readableNameColor(message.color) }
-    val size = preferences.chatFontSize
     val inline = tokens.mapIndexedNotNull { index, token ->
         if (token !is ChatToken.Emotes) return@mapIndexedNotNull null
         val ratio = token.layers.maxOf { it.aspectRatio }
@@ -182,7 +182,7 @@ private fun ChatRow(message: ChatMessage, emotes: Map<String, Emote>, preference
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 token.layers.forEach { emote ->
-                    EmoteImage(emote, preferences.animatedEmotes, Modifier.fillMaxSize())
+                    EmoteImage(emote, animatedEmotes, Modifier.fillMaxSize())
                 }
             }
         }

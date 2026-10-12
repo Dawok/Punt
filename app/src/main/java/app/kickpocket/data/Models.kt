@@ -27,6 +27,8 @@ data class ChatMessage(
     val badges: List<String> = emptyList(),
 )
 
+enum class EmoteKind { General, Collectible, Channel }
+
 data class Emote(
     val id: String,
     val name: String,
@@ -36,6 +38,11 @@ data class Emote(
     val height: Int = 32,
     val animated: Boolean = false,
     val zeroWidth: Boolean = false,
+    val kind: EmoteKind = EmoteKind.General,
+    val usable: Boolean = true,
+    val preferred: Boolean = false,
+    val accountScoped: Boolean = false,
+    val requiresSubscription: Boolean = false,
 ) {
     val aspectRatio: Float get() = (width.toFloat() / height.coerceAtLeast(1)).coerceIn(0.5f, 4f)
 }
@@ -57,5 +64,6 @@ data class AppPreferences(
     val animatedEmotes: Boolean = true,
     val chatFontSize: Int = 14,
     val recentChannels: List<RecentChannel> = emptyList(),
+    val emoteUsage: Map<String, Long> = emptyMap(),
 )
 

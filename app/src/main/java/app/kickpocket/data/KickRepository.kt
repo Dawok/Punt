@@ -41,7 +41,7 @@ class KickRepository(val http: OkHttpClient = defaultHttpClient()) {
             val set = root?.obj("emote_set") ?: root?.text("emote_set_id")?.let { getJson("https://7tv.io/v3/emote-sets/$it").asObject() }
             set?.let(KickParser::sevenTvEmotes) ?: emptyMap()
         } }
-        val native = async { optional("Kick emotes") { KickParser.nativeEmotes(getJson("https://kick.com/emotes/${channel.slug}")) } }
+        val native = async { optional("Kick emotes") { KickParser.nativeEmotes(getJson("https://kick.com/emotes/${channel.slug}"), currentSlug = channel.slug) } }
         val results = listOf(global.await(), native.await(), channelEmotes.await())
         EmoteCatalog(results.fold(emptyMap()) { acc, result -> acc + result.first }, results.mapNotNull { it.second })
     }

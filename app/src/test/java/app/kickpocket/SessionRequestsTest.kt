@@ -9,6 +9,15 @@ import org.junit.Test
 class SessionRequestsTest {
     private val cookies = "session_token=example%7Ctoken; XSRF-TOKEN=example%2Bcsrf"
 
+    @Test fun subscriberNamesAreEncodedOnlyWhenAvailable() {
+        val locked = KickParser.nativeEmote("123", "Sub").copy(usable = false)
+        val json = AppJson.parseToJsonElement(SessionRequests.chatBody("Sub", mapOf("Sub" to locked))).asObject()!!
+        assertEquals("Sub", json.text("content"))
+        val owned = locked.copy(usable = true, kind = EmoteKind.Collectible)
+        val sent = AppJson.parseToJsonElement(SessionRequests.chatBody("Sub", mapOf("Sub" to owned))).asObject()!!
+        assertEquals("[emote:123:Sub]", sent.text("content"))
+    }
+
     @Test fun malformedCredentialsFailWithoutAppearingInTheError() {
         val error = assertThrows(ApiException::class.java) {
             SessionRequests.build("https://kick.com/api/v1/user".toHttpUrl(), "session_token=example-token%0A", "test")

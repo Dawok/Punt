@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.kickpocket.data.Emote
+import app.kickpocket.data.EmoteMenu
 
 private enum class EmoteProvider(val label: String) { All("All"), Kick("Kick"), SevenTv("7TV") }
 
@@ -36,21 +38,19 @@ private enum class EmoteProvider(val label: String) { All("All"), Kick("Kick"), 
 internal fun EmotePicker(
     emotes: Map<String, Emote>,
     animated: Boolean,
+    usage: Map<String, Long>,
     onChoose: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     var query by rememberSaveable { mutableStateOf("") }
     var provider by rememberSaveable { mutableStateOf(EmoteProvider.All) }
-    val matches = remember(emotes, query, provider) {
-        emotes.entries.filter { (alias, emote) ->
-            alias.isNotBlank() && alias.none(Char::isWhitespace) && alias.contains(query.trim(), ignoreCase = true) &&
-                when (provider) {
-                    EmoteProvider.All -> true
-                    EmoteProvider.Kick -> emote.id.startsWith("kick:")
-                    EmoteProvider.SevenTv -> !emote.id.startsWith("kick:")
-                }
-        }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.key })
+    val sections = remember(emotes, usage, query, provider) {
+        EmoteMenu.sections(emotes, usage, query, when (provider) {
+            EmoteProvider.All -> null
+            EmoteProvider.Kick -> true
+            EmoteProvider.SevenTv -> false
+        })
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(
@@ -75,7 +75,7 @@ internal fun EmotePicker(
                         FilterChip(selected = provider == choice, onClick = { provider = choice }, label = { Text(choice.label) })
                     }
                 }
-                if (matches.isEmpty()) {
+                if (sections.isEmpty()) {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Text(if (emotes.isEmpty()) "No emotes available yet." else "No emotes match your search.",
                             color = SubtleColor, modifier = Modifier.padding(12.dp))
@@ -86,17 +86,23 @@ internal fun EmotePicker(
                             columns = GridCells.Adaptive(72.dp), modifier = Modifier.weight(1f).testTag("emote-grid"),
                             contentPadding = PaddingValues(bottom = 8.dp),
                         ) {
-                            items(matches, key = { it.key }, contentType = { "emote" }) { (alias, emote) ->
-                                Column(
-                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                                        .clickable(role = Role.Button) { onChoose(alias) }
-                                        .semantics(mergeDescendants = true) { contentDescription = "Insert $alias" }
-                                        .padding(horizontal = 4.dp, vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    EmoteImage(emote, animated, Modifier.size(36.dp), contentDescription = null)
-                                    Text(alias, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp,
-                                        modifier = Modifier.padding(top = 4.dp))
+                            sections.forEach { section ->
+                                item(key = "section:${section.title}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
+                                    Text(section.title, color = SubtleColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp))
+                                }
+                                items(section.emotes, key = { "emote:${it.first}" }, contentType = { "emote" }) { (alias, emote) ->
+                                    Column(
+                                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                            .clickable(role = Role.Button) { onChoose(alias) }
+                                            .semantics(mergeDescendants = true) { contentDescription = "Insert $alias" }
+                                            .padding(horizontal = 4.dp, vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        EmoteImage(emote, animated, Modifier.size(36.dp), contentDescription = null)
+                                        Text(alias, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp,
+                                            modifier = Modifier.padding(top = 4.dp))
+                                    }
                                 }
                             }
                         }
