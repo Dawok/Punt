@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-apk-${{ github.event_name }}-${{ github.ref }}
+  group: build-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -84,3 +84,40 @@ jobs:
             app/build/reports/lint-results-debug.*
           if-no-files-found: ignore
           retention-days: 14
+
+  publish:
+    name: Publish APK to GitHub Releases
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download built APK
+        uses: actions/download-artifact@v8
+        with:
+          name: punt-apk-${{ github.run_number }}
+          path: artifacts
+
+      - name: Create release with APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -s artifacts/punt.apk
+          release_tag="build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          Automatically built preview APK from main.
+
+          Commit: ${GITHUB_SHA}
+          Build: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+          Download punt.apk below and install it on your Android device.
+          EOF
+          gh release create "$release_tag" artifacts/punt.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Punt preview build ${GITHUB_RUN_NUMBER} (attempt ${GITHUB_RUN_ATTEMPT})" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --latest

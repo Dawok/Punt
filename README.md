@@ -36,10 +36,24 @@ The `Build APK` GitHub Actions workflow runs on pushes to `main`, pull requests
 targeting `main`, and manual runs from the Actions tab. It uses Java 17 and Android
 SDK 36, runs unit tests and lint, and builds an optimized preview APK.
 
-To download it, open **Actions → Build APK → a successful run → Artifacts** and
-download `punt-apk-<run number>`. Extract `punt.apk` from the downloaded archive
-and install it on your phone. APK artifacts are retained for 30 days; check
-reports are retained for 14 days.
+Successful pushes and manual runs on `main` also publish a GitHub Release with
+`punt.apk` attached. Open **Releases → Latest → Assets → punt.apk** to download
+the installable APK directly. Each build attempt gets its own
+`build-<run number>-<attempt>` tag pointing to the exact source commit, and the
+release is marked latest. No manually created version tag is required.
+
+A website download button can use the stable link below, replacing the
+repository placeholders:
+
+```text
+https://github.com/OWNER/REPOSITORY/releases/latest/download/punt.apk
+```
+
+Pull request builds and manual runs on other branches upload Actions artifacts
+without publishing a release. Open **Actions → Build APK → a successful run →
+Artifacts** and download `punt-apk-<run number>`, then extract `punt.apk`.
+APK artifacts are retained for 30 days; check reports are retained for 14 days.
+Release APKs remain available independently of Actions artifact retention.
 
 For preview builds that update your existing installation, add the repository
 Actions secret `ANDROID_DEBUG_KEYSTORE_BASE64` using the same debug keystore as
@@ -54,8 +68,9 @@ backup of it. Without this secret, runners generate a new debug signing key,
 so installing another build may require uninstalling the previous app and
 losing its local data. Pull request builds always use a temporary signing key.
 These are preview builds; configure permanent release signing for public
-distribution. The workflow uploads build artifacts to Actions; website uploads
-and GitHub Releases are separate publishing steps.
+distribution. Release publishing uses the workflow's built-in GitHub token;
+only the publishing job has repository write permission. Uploading APKs to a
+separate website host remains a separate deployment step.
 
 ## How it works
 
