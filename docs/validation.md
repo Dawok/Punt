@@ -1,4 +1,55 @@
-# Punt 0.6.1 verification
+# Punt 0.6.3 verification
+
+- Playback recovery handles transient network errors and stalled playback with
+  a five-attempt retry budget, delays from one to fifteen seconds, network
+  callbacks, and a bounded wake lock during recovery. Pausing cancels recovery;
+  thirty seconds of playback progress resets the retry budget.
+- Wi-Fi and mobile-data quality preferences persist independently and apply to
+  new channels and active network changes. Track selection uses a resolution
+  constraint rather than storing track IDs that change between streams.
+- Search suggestions combine local pins and recent channels with cached
+  followed/browsed channels. Duplicate slugs are removed, prefix matches rank
+  first, and pinning does not require an account.
+- In-app updates check an HTTPS release feed, compare Android version codes,
+  download with progress/cancellation, verify SHA-256 and package/signing
+  compatibility, and open Android's installer. Installation permission can be
+  granted through Android settings and installation resumes on return.
+- CI packages `update.json` using the built APK's actual metadata and checksum,
+  uses increasing Android version codes, and titles releases `Punt <version>`.
+  The update URL is generated from the CI repository context. Public repository
+  visibility is required for anonymous downloads; no GitHub token is embedded.
+- All 56 JVM tests pass, including HTTPS feed/download checks, corrupted-file
+  rejection, version/downgrade checks, old-preference migration, suggestion
+  merging/ranking, and bounded retry behavior. Android lint and preview/test APK
+  builds pass. Workflow validation and feed packaging checks pass.
+- Added device checks for pinning/search, quality persistence, and cancellation
+  of recovery by a manual pause. They compile but remain unexecuted because no
+  usable device/emulator is attached. Screen-lock playback was reported working
+  on the previous build; the new recovery, network-switch, and installer flows
+  still require device verification.
+- The existing GitHub release was renamed to its actual version, `Punt 0.6.1`.
+  CI now reuses the local signing key. The old GitHub APK's certificate differs
+  from that key, so installations of that APK need one reinstall to migrate.
+- Local version code is 11 / version 0.6.3. The preview signature verifies and
+  matches the prior local APK. The installable copy is
+  `artifacts/punt-0.6.3.apk`. Live anonymous update fetching remains unavailable
+  until the repository is made public and a build publishes the new feed.
+
+## Earlier version 0.6.2 verification
+
+- Removed the sample-stream entry, stream creation code, and simulated-message
+  generator. Playback checks now set up their fixture in Android test sources;
+  its video URL is absent from the application DEX.
+- The channel field contains a trailing Watch arrow with a 48 dp touch target,
+  an accessible label, a loading indicator, and disabled behavior for blank
+  input or pending requests. The keyboard Go action still opens the channel.
+- All 49 JVM tests pass, lint passes, and optimized preview and Android test
+  APKs build successfully. Updated instrumentation tests compile; device UI
+  checks remain unverified because no usable device/emulator is available.
+- The preview APK signature verifies. Version code is 10 / version 0.6.2; the
+  installable copy is `artifacts/punt-0.6.2.apk`.
+
+## Earlier version 0.6.1 verification
 
 - Reproduced the old chat endpoint rejecting its compiled Pusher key. Kick's
   current website discovers the transport through

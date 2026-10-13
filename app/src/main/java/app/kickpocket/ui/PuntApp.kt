@@ -54,10 +54,12 @@ import app.kickpocket.StreamViewModel
 fun PuntApp(viewModel: StreamViewModel, browseModel: BrowseViewModel, pipState: StateFlow<Boolean>) {
     val pip by pipState.collectAsStateWithLifecycle()
     val browse by browseModel.state.collectAsStateWithLifecycle()
+    val followed by browseModel.followedChannels.collectAsStateWithLifecycle()
     val account by browseModel.account.collectAsStateWithLifecycle()
     var login by rememberSaveable { mutableStateOf(false) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    val updates by viewModel.updates.state.collectAsStateWithLifecycle()
     var settings by rememberSaveable { mutableStateOf(false) }
     var emotePicker by remember { mutableStateOf(false) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
@@ -90,10 +92,12 @@ fun PuntApp(viewModel: StreamViewModel, browseModel: BrowseViewModel, pipState: 
     Surface(Modifier.fillMaxSize(), color = AppBackground, contentColor = MaterialTheme.colorScheme.onBackground) {
         Box(if (pip) Modifier.fillMaxSize() else Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
             if (channel == null) {
-                HomeScreen(state, preferences, browse, account, viewModel::open, viewModel::sample,
+                HomeScreen(state, preferences, browse, account, viewModel::open,
                     onSettings = { settings = true }, onLogin = { login = true }, onSignOut = browseModel::signOut,
                     onTab = browseModel::select, onSort = browseModel::sort, onCategory = browseModel::category, onCategoryBack = browseModel::backToCategories,
-                    onRefresh = browseModel::refresh, onMore = browseModel::more)
+                    onRefresh = browseModel::refresh, onMore = browseModel::more,
+                    followedChannels = followed, onPin = viewModel::toggleFavorite,
+                    updateVersion = updates.available?.versionName)
             } else {
                 StreamLayout(viewModel, state, preferences, landscape, fullscreen, pip,
                     onFullscreen = { fullscreen = !fullscreen }, onSettings = { settings = true }, onLogin = { login = true },
@@ -102,5 +106,8 @@ fun PuntApp(viewModel: StreamViewModel, browseModel: BrowseViewModel, pipState: 
         }
     }
     if (login && !pip) LoginDialog(account, browseModel::checkLogin, onDismiss = { login = false })
-    if (settings && !pip) SettingsDialog(preferences, viewModel::animatedEmotes, viewModel::fontSize, viewModel::clearRecent, onDismiss = { settings = false })
+    if (settings && !pip) SettingsDialog(preferences, viewModel::animatedEmotes, viewModel::fontSize, viewModel::clearRecent,
+        onDismiss = { settings = false }, onWifiQuality = viewModel::wifiQuality, onMobileQuality = viewModel::mobileQuality,
+        updates = updates, onCheckUpdates = viewModel.updates::check, onDownloadUpdate = viewModel.updates::download,
+        onInstallUpdate = { viewModel.updates.install(activity) }, onCancelDownload = viewModel.updates::cancelDownload)
 }

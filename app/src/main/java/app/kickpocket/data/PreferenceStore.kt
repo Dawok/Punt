@@ -27,5 +27,11 @@ class PreferenceStore(context: Context) {
     fun recordEmotes(content: String, emotes: Map<String, Emote>) = update {
         it.copy(emoteUsage = EmoteMenu.record(it.emoteUsage, content, emotes))
     }
+
+    fun toggleFavorite(channel: RecentChannel) = update {
+        val exists = it.favoriteChannels.any { old -> old.slug == channel.slug }
+        it.copy(favoriteChannels = if (exists) it.favoriteChannels.filterNot { old -> old.slug == channel.slug }
+            else it.favoriteChannels + channel)
+    }
 }
 

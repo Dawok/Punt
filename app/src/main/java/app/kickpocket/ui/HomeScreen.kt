@@ -8,6 +8,8 @@ import androidx.compose.ui.platform.testTag
 import app.kickpocket.data.AccountState
 import app.kickpocket.data.CategoryCard
 import app.kickpocket.data.ChannelCard
+import app.kickpocket.data.RecentChannel
+import app.kickpocket.data.ChannelSuggestions
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -45,11 +47,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -68,6 +71,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -86,7 +91,6 @@ fun HomeScreen(
     browse: BrowseState,
     account: AccountState,
     onOpen: (String) -> Unit,
-    onSample: () -> Unit,
     onSettings: () -> Unit,
     onLogin: () -> Unit,
     onSignOut: () -> Unit,
@@ -96,6 +100,9 @@ fun HomeScreen(
     onCategoryBack: () -> Unit,
     onRefresh: () -> Unit,
     onMore: () -> Unit,
+    followedChannels: List<ChannelCard>,
+    onPin: (RecentChannel) -> Unit,
+    updateVersion: String?,
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var sortMenu by remember { mutableStateOf(false) }
@@ -126,25 +133,75 @@ fun HomeScreen(
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings", tint = SubtleColor) }
             }
         }
+        if (updateVersion != null) item(span = { GridItemSpan(maxLineSpan) }) {
+            Surface(color = PanelColor, shape = RoundedCornerShape(12.dp)) {
+                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Update available · $updateVersion", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onSettings) { Text("Update") }
+                }
+            }
+        }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(),
                     label = { Text("Channel name or Kick link") },
                     leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true, enabled = !state.loading,
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { onOpen(input) },
+                            enabled = input.isNotBlank() && !state.loading,
+                            modifier = Modifier.testTag("watch-channel").semantics {
+                                contentDescription = if (state.loading) "Opening channel" else "Watch channel"
+                            },
+                        ) {
+                            if (state.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.AutoMirrored.Filled.ArrowForward, null,
+                                tint = if (input.isNotBlank()) KickGreen else SubtleColor)
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                     keyboardActions = KeyboardActions(onGo = { if (input.isNotBlank() && !state.loading) onOpen(input) }),
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onOpen(input) }, enabled = input.isNotBlank() && !state.loading, modifier = Modifier.weight(1f)) {
-                        if (state.loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
-                        Text(if (state.loading) "Opening…" else "Watch channel", modifier = Modifier.padding(start = 6.dp))
-                    }
-                    TextButton(onClick = onSample, enabled = !state.loading) { Text("Try a sample stream", fontSize = 12.sp) }
-                }
                 state.error?.let { ErrorCard(it) }
+                val suggestions = ChannelSuggestions.find(input, preferences, followedChannels, browse.channels)
+                if (suggestions.isNotEmpty()) Surface(color = PanelColor, shape = RoundedCornerShape(12.dp)) {
+                    Column {
+                        suggestions.forEach { suggestion ->
+                            val channel = suggestion.channel
+                            Row(Modifier.fillMaxWidth().clickable(enabled = !state.loading) { onOpen(channel.slug) }
+                                .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(channel.avatarUrl, channel.displayName, 30)
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(channel.displayName, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${channel.slug} · ${suggestion.source}", fontSize = 11.sp, color = SubtleColor)
+                                }
+                                PinButton(preferences.favoriteChannels.any { it.slug == channel.slug }, channel.displayName) { onPin(channel) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (preferences.favoriteChannels.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Pinned channels", fontSize = 12.sp, color = SubtleColor)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(preferences.favoriteChannels, key = { it.slug }) { channel ->
+                            Surface(shape = RoundedCornerShape(12.dp), color = PanelColor,
+                                modifier = Modifier.clickable(enabled = !state.loading) { onOpen(channel.slug) }) {
+                                Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Avatar(channel.avatarUrl, channel.displayName, 28)
+                                    Text(channel.displayName, fontSize = 12.sp, maxLines = 1,
+                                        modifier = Modifier.padding(start = 8.dp).widthIn(max = 110.dp), overflow = TextOverflow.Ellipsis)
+                                    PinButton(true, channel.displayName) { onPin(channel) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         if (preferences.recentChannels.isNotEmpty()) {
@@ -227,7 +284,9 @@ fun HomeScreen(
                 }
             } else {
                 items(browse.channels, key = { "channel:${it.slug}" }) { channel ->
-                    ChannelTile(channel, enabled = !state.loading, onClick = { onOpen(channel.slug) })
+                    ChannelTile(channel, enabled = !state.loading, onClick = { onOpen(channel.slug) },
+                        pinned = preferences.favoriteChannels.any { it.slug == channel.slug },
+                        onPin = { onPin(RecentChannel(channel.slug, channel.username, channel.avatar)) })
                 }
             }
             if (browse.loading) {
@@ -255,13 +314,16 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ChannelTile(channel: ChannelCard, enabled: Boolean, onClick: () -> Unit) {
+private fun ChannelTile(channel: ChannelCard, enabled: Boolean, onClick: () -> Unit, pinned: Boolean, onPin: () -> Unit) {
     Surface(color = PanelColor, shape = RoundedCornerShape(12.dp), modifier = Modifier.clickable(enabled = enabled, onClick = onClick)) {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
                 if (channel.thumbnail != null) AsyncImage(model = channel.thumbnail, contentDescription = null,
                     contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else Box(Modifier.align(Alignment.Center)) { Avatar(channel.avatar, channel.username, 48) }
+                Box(Modifier.align(Alignment.TopEnd).background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(bottomStart = 12.dp))) {
+                    PinButton(pinned, channel.username, onPin)
+                }
                 Text("LIVE · ${compactCount(channel.viewers)}", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 10.sp,
                     modifier = Modifier.align(Alignment.BottomStart).padding(7.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black.copy(alpha = 0.65f)).padding(horizontal = 6.dp, vertical = 3.dp))
             }
@@ -271,6 +333,15 @@ private fun ChannelTile(channel: ChannelCard, enabled: Boolean, onClick: () -> U
                 if (channel.category.isNotBlank()) Text(channel.category, color = SubtleColor, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+    }
+}
+
+@Composable
+fun PinButton(pinned: Boolean, name: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(if (pinned) Icons.Default.Star else Icons.Outlined.StarBorder,
+            if (pinned) "Unpin $name" else "Pin $name", tint = if (pinned) KickGreen else SubtleColor,
+            modifier = Modifier.size(20.dp))
     }
 }
 

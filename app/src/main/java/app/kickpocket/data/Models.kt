@@ -65,5 +65,9 @@ data class AppPreferences(
     val chatFontSize: Int = 14,
     val recentChannels: List<RecentChannel> = emptyList(),
     val emoteUsage: Map<String, Long> = emptyMap(),
+    val favoriteChannels: List<RecentChannel> = emptyList(),
+    val wifiQuality: Int = 0,
+    val mobileQuality: Int = 0,
+    val lastUpdateCheckMs: Long = 0,
 )
 

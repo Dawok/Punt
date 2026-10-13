@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import app.kickpocket.StreamState
 import app.kickpocket.StreamViewModel
 import app.kickpocket.data.AppPreferences
+import app.kickpocket.data.RecentChannel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private enum class StreamPart { Video, Header, Title, Chat, Error }
@@ -62,6 +63,9 @@ fun StreamLayout(
                 if (!channel.isDemo && account.account?.id != channel.userId) {
                     FollowButton(follow, account.account != null, channel.displayName,
                         viewModel::toggleFollow, viewModel::retryFollow, onLogin)
+                }
+                if (!channel.isDemo) PinButton(preferences.favoriteChannels.any { it.slug == channel.slug }, channel.displayName) {
+                    viewModel.toggleFavorite(RecentChannel(channel.slug, channel.displayName, channel.avatarUrl))
                 }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings", tint = SubtleColor) }
             }

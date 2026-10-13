@@ -30,6 +30,8 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     val account = app.session.state
     private val mutable = MutableStateFlow(BrowseState(tab = if (app.session.hasSavedSession) BrowseTab.Following else BrowseTab.Live))
     val state = mutable.asStateFlow()
+    private val mutableFollowed = MutableStateFlow<List<ChannelCard>>(emptyList())
+    val followedChannels = mutableFollowed.asStateFlow()
     private var loadJob: Job? = null
 
     init {
@@ -52,6 +54,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
             var previousId: Long? = null
             account.collect { state ->
                 if (state.account?.id != previousId) {
+                    mutableFollowed.value = emptyList()
                     previousId = state.account?.id
                     if (state.account != null) {
                         loadJob?.cancel()
@@ -115,6 +118,7 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     mutable.update { it.copy(channels = ((if (more) old.channels else emptyList()) + page.items).distinctBy { item -> item.slug },
                         cursor = page.cursor.takeUnless { value -> value == cursor }, loading = false) }
+                    if (old.tab == BrowseTab.Following) mutableFollowed.value = mutable.value.channels
                 }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) { mutable.update { it.copy(loading = false, error = error.message ?: "Could not load channels. Try again.") } }

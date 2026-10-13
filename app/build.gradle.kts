@@ -13,8 +13,12 @@ android {
         applicationId = "app.kickpocket"
         minSdk = 28
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.6.1"
+        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 11
+        versionName = "0.6.3"
+        val updateFeed = providers.environmentVariable("UPDATE_MANIFEST_URL").orNull
+            ?: providers.environmentVariable("GITHUB_REPOSITORY").orNull
+                ?.let { "https://github.com/$it/releases/latest/download/update.json" }.orEmpty()
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"${updateFeed.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -65,6 +69,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.10.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

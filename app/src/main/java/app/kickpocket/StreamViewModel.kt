@@ -7,11 +7,11 @@ import app.kickpocket.chat.ChatBuffer
 import app.kickpocket.chat.KickChatClient
 import app.kickpocket.data.ChannelInput
 import app.kickpocket.data.ChatConnection
-import app.kickpocket.data.ChatEvent
 import app.kickpocket.data.ChatMessage
 import app.kickpocket.data.Emote
 import app.kickpocket.data.EmoteMenu
 import app.kickpocket.data.KickChannel
+import app.kickpocket.data.RecentChannel
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +37,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     private val app = application as PuntApplication
     private val repository = app.repository
     val preferences = app.preferences.preferences
+    val updates = app.updates
     val player = app.playback
     private val mutable = app.streamState
     val state = mutable.asStateFlow()
@@ -149,25 +150,6 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun sample() {
-        reset()
-        val requestGeneration = generation
-        val channel = KickChannel(
-            id = 0, userId = 0, chatroomId = 0, slug = "sample", displayName = "Sample stream",
-            avatarUrl = null,
-            playbackUrl = "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
-            isLive = true, title = "Playback & emote preview", category = "Sample video · simulated chat", viewers = 0,
-            isDemo = true,
-        )
-        mutable.value = StreamState(channel = channel)
-        player.load(requireNotNull(channel.playbackUrl), false)
-        startChat()
-        emoteJob = viewModelScope.launch {
-            val catalog = repository.sampleEmotes()
-            if (generation == requestGeneration) mutable.update { it.copy(emotes = catalog.emotes, emoteWarnings = catalog.warnings) }
-        }
-    }
-
     fun leave() { reset(); mutable.value = StreamState() }
 
     private fun reset() {
@@ -204,32 +186,14 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     private fun startChat() {
         val channel = mutable.value.channel ?: return
         if (!foreground || chatJob?.isActive == true) return
+        if (channel.isDemo) {
+            mutableConnection.value = ChatConnection.Connected
+            return
+        }
         val sessionBuffer = buffer
         val requestGeneration = generation
         chatJob = viewModelScope.launch(Dispatchers.IO) {
-            if (channel.isDemo) {
-                mutableConnection.value = ChatConnection.Connected
-                var index = 0L
-                while (isActive) {
-                    val emote = mutable.value.emotes.values.firstOrNull { it.animated }
-                    val contents = listOf(
-                        "This is sample chat. Open a Kick channel to read real messages.",
-                        "Player controls let you pause and seek this sample video.",
-                        "Kick emotes: [emote:1730752:emojiAngel]",
-                        if (emote != null) "7TV emotes: ${emote.name} ${emote.name}" else "7TV emotes are loading…",
-                        "Try rotating your phone for video and chat side by side.",
-                    )
-                    sessionBuffer.apply(ChatEvent.Message(ChatMessage(
-                        id = "sample:${index}", userId = index % 3,
-                        username = if (index % 3 == 0L) "moderator" else "viewer",
-                        color = if (index % 3 == 0L) "#53FC18" else "#A78BFA",
-                        content = contents[(index % contents.size).toInt()],
-                        badges = if (index % 3 == 0L) listOf("moderator") else emptyList(),
-                    )))
-                    index++
-                    delay(1_800)
-                }
-            } else KickChatClient(repository.http).collect(channel.chatroomId,
+            KickChatClient(repository.http).collect(channel.chatroomId,
                 onState = { if (generation == requestGeneration && foreground) mutableConnection.value = it },
                 onEvent = sessionBuffer::apply,
                 channelId = channel.id,
@@ -301,6 +265,9 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     fun animatedEmotes(enabled: Boolean) = app.preferences.update { it.copy(animatedEmotes = enabled) }
     fun fontSize(size: Int) = app.preferences.update { it.copy(chatFontSize = size) }
     fun clearRecent() = app.preferences.update { it.copy(recentChannels = emptyList()) }
+    fun toggleFavorite(channel: RecentChannel) = app.preferences.toggleFavorite(channel)
+    fun wifiQuality(height: Int) = app.preferences.update { it.copy(wifiQuality = height) }
+    fun mobileQuality(height: Int) = app.preferences.update { it.copy(mobileQuality = height) }
 
     private fun readableError(error: Exception): String = when (error) {
         is IOException -> error.message ?: "Could not connect. Check your internet connection and retry."

@@ -57,7 +57,12 @@ class MainActivity : ComponentActivity() {
         setContent { PuntTheme { PuntApp(stream, browse, pip) } }
     }
 
-    override fun onStart() { super.onStart(); stream.foreground(true) }
+    override fun onStart() {
+        super.onStart()
+        stream.foreground(true)
+        stream.updates.checkIfDue()
+        stream.updates.resumeInstallIfAllowed(this)
+    }
     override fun onStop() { stream.foreground(false); super.onStop() }
 
     override fun onUserLeaveHint() {

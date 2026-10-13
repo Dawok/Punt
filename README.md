@@ -7,7 +7,7 @@ An unofficial Android app for watching Kick streams, chatting, and using Kick/7T
 Install a built APK on your phone, or use ADB:
 
 ```sh
-adb install -r artifacts/punt-0.6.1.apk
+adb install -r artifacts/punt-0.6.3.apk
 ```
 
 Updates keep the same Android package ID and app data.
@@ -30,69 +30,32 @@ adb install -r app/build/outputs/apk/preview/app-preview.apk
 
 Preview builds use the local debug signing key. Configure release signing before publishing.
 
-## Automatic APK builds
+## In-app updates
 
-The `Build APK` GitHub Actions workflow runs on pushes to `main`, pull requests
-targeting `main`, and manual runs from the Actions tab. It uses Java 17 and Android
-SDK 36, runs unit tests and lint, and builds an optimized preview APK.
+The app checks for updates when opened, at most once every six hours. You can
+also use **Settings → Check for updates**. A home-screen banner appears when a
+newer build is available. Download the update in Settings, then tap **Install
+update**. Android may first ask you to allow installations from Punt, then
+asks you to confirm installing the APK. The updater verifies the checksum,
+application ID, version, and compatibility with the installed signing key.
 
-Successful pushes and manual runs on `main` also publish a GitHub Release with
-`punt.apk` attached. Open **Releases → Latest → Assets → punt.apk** to download
-the installable APK directly. Each build attempt gets its own
-`build-<run number>-<attempt>` tag pointing to the exact source commit, and the
-release is marked latest. No manually created version tag is required.
+The repository must be public for the app to download releases anonymously.
+No GitHub access token is included in the app. CI automatically configures the
+feed from `GITHUB_REPOSITORY`; each feed points to its exact release APK rather
+than a changing latest download. CI uses `1000 + GITHUB_RUN_NUMBER` as the
+Android version code, so new builds can be detected even between version-name
+changes.
 
-A website download button can use the stable link below, replacing the
-repository placeholders:
-
-```text
-https://github.com/OWNER/REPOSITORY/releases/latest/download/punt.apk
-```
-
-Pull request builds and manual runs on other branches upload Actions artifacts
-without publishing a release. Open **Actions → Build APK → a successful run →
-Artifacts** and download `punt-apk-<run number>`, then extract `punt.apk`.
-APK artifacts are retained for 30 days; check reports are retained for 14 days.
-Release APKs remain available independently of Actions artifact retention.
-
-For preview builds that update your existing installation, add the repository
-Actions secret `ANDROID_DEBUG_KEYSTORE_BASE64` using the same debug keystore as
-your local builds. With GitHub CLI authenticated in this repository:
+For local builds with GitHub updates enabled:
 
 ```sh
-base64 < "$HOME/.android/debug.keystore" | gh secret set ANDROID_DEBUG_KEYSTORE_BASE64
+GITHUB_REPOSITORY=OWNER/REPOSITORY ./gradlew :app:assemblePreview
 ```
 
-The keystore must use the standard Android debug alias and passwords. Keep a
-backup of it. Without this secret, runners generate a new debug signing key,
-so installing another build may require uninstalling the previous app and
-losing its local data. Pull request builds always use a temporary signing key.
-These are preview builds; configure permanent release signing for public
-distribution. Release publishing uses the workflow's built-in GitHub token;
-only the publishing job has repository write permission. Uploading APKs to a
-separate website host remains a separate deployment step.
-
-## How it works
-
-Kotlin and Jetpack Compose provide the interface; Media3 handles video playback.
-Audio continues with the screen off or while using another app, with playback
-controls in the media notification and on the lock screen. Video is disabled
-while the activity is stopped and restored when returning to the app or PiP.
-Pausing stays paused when returning. Leaving the channel or removing the app
-from recent tasks stops playback.
-
-Tap **LIVE** in the player controls to jump back to the live position and resume
-after pausing or falling behind. The indicator is green near live and gray
-while paused or behind. Streams recover automatically when playback falls
-outside the available live window.
-
-Kick's website endpoints provide streams, chat, account access, and native
-emotes. Chat discovers its current transport before connecting, supports
-Pusher and Centrifugo, and renews expiring connection tokens. 7TV supplies
-global and channel emotes. Login uses Kick's own website in an app-private
-WebView.
-
-The picker puts owned collectibles and accessible channel emotes first, then your most-used emotes. Usage is saved on this device after successful sends. Picking an emote edits the draft; press Send to send it.
+Alternatively, set `UPDATE_MANIFEST_URL` to an HTTPS update feed. Plain local
+builds without either setting show that updates are not configured. Set
+`ANDROID_VERSION_CODE` when building locally to replace a higher-numbered CI
+installation. The package ID and signing key must still match.
 
 ## Checks
 

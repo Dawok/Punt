@@ -19,6 +19,8 @@ jobs:
     name: Build and check Android app
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version_name: ${{ steps.package.outputs.version_name }}
 
     steps:
       - name: Check out source
@@ -41,15 +43,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Set increasing Android build version
+        run: echo "ANDROID_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
       - name: Restore preview signing key
         if: github.event_name != 'pull_request'
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          PUBLISHING_BUILD: ${{ github.ref == 'refs/heads/main' }}
         run: |
           if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
             install -d -m 700 "$HOME/.android"
             printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
             chmod 600 "$HOME/.android/debug.keystore"
+          elif [ "$PUBLISHING_BUILD" = "true" ]; then
+            echo '::error::Configure ANDROID_DEBUG_KEYSTORE_BASE64 before publishing updatable APKs.'
+            exit 1
           else
             echo '::warning::No preview signing key configured. This APK may require uninstalling an existing build before installation.'
           fi
@@ -61,15 +70,21 @@ jobs:
         run: ./gradlew --no-daemon :app:assemblePreview
 
       - name: Prepare download
+        id: package
         run: |
           mkdir -p artifacts
           cp app/build/outputs/apk/preview/app-preview.apk artifacts/punt.apk
+          python3 .github/scripts/package-update.py \
+            --metadata app/build/outputs/apk/preview/output-metadata.json \
+            --apk artifacts/punt.apk \
+            --output artifacts/update.json \
+            --apk-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}/punt.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
           name: punt-apk-${{ github.run_number }}
-          path: artifacts/punt.apk
+          path: artifacts/
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -104,6 +119,7 @@ jobs:
       - name: Create release with APK
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version_name }}
         run: |
           test -s artifacts/punt.apk
           release_tag="build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
@@ -115,9 +131,9 @@ jobs:
 
           Download punt.apk below and install it on your Android device.
           EOF
-          gh release create "$release_tag" artifacts/punt.apk \
+          gh release create "$release_tag" artifacts/punt.apk artifacts/update.json \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Punt preview build ${GITHUB_RUN_NUMBER} (attempt ${GITHUB_RUN_ATTEMPT})" \
+            --title "Punt ${RELEASE_VERSION}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
             --latest

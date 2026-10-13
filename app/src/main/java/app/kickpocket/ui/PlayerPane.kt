@@ -128,6 +128,10 @@ fun VideoPlayer(
                 Button(onClick = onRetry, enabled = !loading) { Text(if (loading) "Retrying…" else "Retry stream") }
             }
         } else if (loading) CircularProgressIndicator(Modifier.size(if (pip) 16.dp else 28.dp), color = KickGreen, strokeWidth = 2.dp)
+        if (state.recovering && !pip) Text("Reconnecting stream · ${state.recoveryAttempt}/5",
+            color = Color.White, fontSize = 12.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
+                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
     }
 }
 

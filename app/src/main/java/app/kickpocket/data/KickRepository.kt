@@ -46,10 +46,6 @@ class KickRepository(val http: OkHttpClient = defaultHttpClient()) {
         EmoteCatalog(results.fold(emptyMap()) { acc, result -> acc + result.first }, results.mapNotNull { it.second })
     }
 
-    suspend fun sampleEmotes(): EmoteCatalog = optional("7TV global emotes") {
-        KickParser.sevenTvEmotes(getJson("https://7tv.io/v3/emote-sets/global").asObject() ?: error("Invalid emote set"))
-    }.let { EmoteCatalog(it.first, listOfNotNull(it.second)) }
-
     private suspend fun optional(label: String, block: suspend () -> Map<String, Emote>): Pair<Map<String, Emote>, String?> = try {
         block() to null
     } catch (error: CancellationException) {

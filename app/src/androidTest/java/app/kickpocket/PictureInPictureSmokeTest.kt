@@ -22,9 +22,21 @@ import org.junit.Test
 class PictureInPictureSmokeTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun manuallyPausingCancelsAutomaticNetworkRecovery() {
+        val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
+        compose.runOnUiThread {
+            openPlaybackFixture(compose.activity)
+            stream.player.load("https://127.0.0.1:1/stream.m3u8", true)
+        }
+        compose.waitUntil(15_000) { stream.player.state.value.recovering }
+        compose.runOnUiThread { stream.player.player.pause() }
+        compose.waitUntil(5_000) { !stream.player.state.value.recovering }
+        compose.runOnUiThread { assertFalse(stream.player.player.playWhenReady) }
+    }
+
     @Test fun lockingScreenKeepsAudioPlayingAndReturningRestoresVideo() {
         val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
-        compose.onNodeWithText("Try a sample stream").performClick()
+        compose.runOnUiThread { openPlaybackFixture(compose.activity) }
         compose.waitUntil(90_000) {
             var playing = false
             compose.runOnUiThread { playing = stream.player.player.isPlaying }
@@ -57,7 +69,7 @@ class PictureInPictureSmokeTest {
 
     @Test fun lockingAndUnlockingDoesNotResumeManuallyPausedPlayback() {
         val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
-        compose.onNodeWithText("Try a sample stream").performClick()
+        compose.runOnUiThread { openPlaybackFixture(compose.activity) }
         compose.runOnUiThread { stream.player.player.pause() }
         try {
             shell("input keyevent 223")
@@ -74,7 +86,7 @@ class PictureInPictureSmokeTest {
     @Test fun switchingAppsEntersPipKeepsVideoPlayingAndRestoresChat() {
         assumeTrue(compose.activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE))
         val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
-        compose.onNodeWithText("Try a sample stream").performClick()
+        compose.runOnUiThread { openPlaybackFixture(compose.activity) }
         val startupTimeout = InstrumentationRegistry.getArguments().getString("videoStartupMs")?.toLongOrNull()
             ?.coerceIn(1_000, 180_000) ?: 60_000L
         compose.waitUntil(startupTimeout) {
@@ -106,7 +118,7 @@ class PictureInPictureSmokeTest {
     @Test fun pausedPlaybackDoesNotEnterPip() {
         assumeTrue(compose.activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE))
         val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
-        compose.onNodeWithText("Try a sample stream").performClick()
+        compose.runOnUiThread { openPlaybackFixture(compose.activity) }
         compose.runOnUiThread { stream.player.player.pause() }
         compose.waitForIdle()
         shell("input keyevent 3")
