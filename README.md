@@ -1,61 +1,39 @@
 # Punt
 
-An unofficial Android app for watching Kick streams, chatting, and using Kick/7TV emotes. Requires Android 9 or newer. Sign in to send messages, follow channels, and use account emotes.
+An unofficial Android app for watching Kick streams and chatting with Kick and 7TV emotes. Requires Android 9 or newer.
+
+## Features
+
+- Browse live channels and categories, or open a channel by name or link.
+- Live chat with Kick and 7TV emotes.
+- Background audio, lock-screen controls, fullscreen, and picture-in-picture.
+- Automatic playback recovery and a **LIVE** button to catch up with the stream.
+- Pinned and recent channels, search suggestions, and separate Wi-Fi/mobile video quality preferences.
 
 ## Install
 
-Install a built APK on your phone, or use ADB:
+Download `punt.apk` from the latest [release](../../releases/latest), open it on your phone, and allow installation from that source when prompted. Alternatively, use ADB:
 
 ```sh
-adb install -r artifacts/punt-0.6.3.apk
+adb install -r punt.apk
 ```
 
-Updates keep the same Android package ID and app data.
+## Usage
+
+Browse channels or enter a channel name or Kick link in the search field and tap the arrow. Sign in to send chat messages, follow channels, and use account emotes; watching and pinning channels work without an account.
+
+Tap **LIVE** to return to the current stream after pausing. Use Settings to adjust chat text size, animated emotes, and video quality for Wi-Fi and mobile data.
 
 ## Build and run
 
-Open the project in Android Studio with JDK 17 and Android SDK 36, then run the `app` configuration on a phone or emulator. From a terminal, configure `JAVA_HOME` and `ANDROID_HOME`, then run:
-
-```sh
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-For an optimized APK:
+Open the project in Android Studio with JDK 17 and Android SDK 36, then run the `app` configuration on a phone or emulator. To build an optimized APK from a terminal, set `JAVA_HOME` to your JDK and `ANDROID_HOME` to your Android SDK, then run:
 
 ```sh
 ./gradlew :app:assemblePreview
 adb install -r app/build/outputs/apk/preview/app-preview.apk
 ```
 
-Preview builds use the local debug signing key. Configure release signing before publishing.
-
-## In-app updates
-
-The app checks for updates when opened, at most once every six hours. You can
-also use **Settings → Check for updates**. A home-screen banner appears when a
-newer build is available. Download the update in Settings, then tap **Install
-update**. Android may first ask you to allow installations from Punt, then
-asks you to confirm installing the APK. The updater verifies the checksum,
-application ID, version, and compatibility with the installed signing key.
-
-The repository must be public for the app to download releases anonymously.
-No GitHub access token is included in the app. CI automatically configures the
-feed from `GITHUB_REPOSITORY`; each feed points to its exact release APK rather
-than a changing latest download. CI uses `1000 + GITHUB_RUN_NUMBER` as the
-Android version code, so new builds can be detected even between version-name
-changes.
-
-For local builds with GitHub updates enabled:
-
-```sh
-GITHUB_REPOSITORY=OWNER/REPOSITORY ./gradlew :app:assemblePreview
-```
-
-Alternatively, set `UPDATE_MANIFEST_URL` to an HTTPS update feed. Plain local
-builds without either setting show that updates are not configured. Set
-`ANDROID_VERSION_CODE` when building locally to replace a higher-numbered CI
-installation. The package ID and signing key must still match.
+Preview builds use your local debug signing key.
 
 ## Checks
 
