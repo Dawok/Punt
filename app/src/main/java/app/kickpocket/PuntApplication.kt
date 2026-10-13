@@ -5,6 +5,8 @@ import android.content.Context
 import app.kickpocket.data.KickRepository
 import app.kickpocket.data.PreferenceStore
 import app.kickpocket.data.KickSession
+import app.kickpocket.player.PlayerController
+import kotlinx.coroutines.flow.MutableStateFlow
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
@@ -17,6 +19,9 @@ class PuntApplication : Application(), SingletonImageLoader.Factory {
     val repository by lazy { KickRepository() }
     val preferences by lazy { PreferenceStore(this) }
     val session by lazy { KickSession(this) }
+    // Shared with the media service so playback does not depend on the activity lifecycle.
+    val playback by lazy { PlayerController(this) }
+    val streamState = MutableStateFlow(StreamState())
 
     override fun newImageLoader(context: Context): ImageLoader = ImageLoader.Builder(context)
         .components {

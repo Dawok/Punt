@@ -1,6 +1,8 @@
 package app.kickpocket
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.Player
 import androidx.test.platform.app.InstrumentationRegistry
@@ -32,6 +34,24 @@ class LiveChannelSmokeTest {
                 var ready = false
                 compose.runOnUiThread { ready = viewModel.player.player.playbackState == Player.STATE_READY && viewModel.player.player.videoSize.width > 0 }
                 ready
+            }
+            var initialOffset = 0L
+            compose.runOnUiThread {
+                initialOffset = viewModel.player.player.currentLiveOffset
+                viewModel.player.player.pause()
+            }
+            compose.waitUntil(25_000) {
+                var behind = false
+                compose.runOnUiThread { behind = viewModel.player.player.currentLiveOffset > initialOffset + 10_000 }
+                behind
+            }
+            compose.onNodeWithTag("go-live").performClick()
+            compose.waitUntil(15_000) {
+                var atLive = false
+                compose.runOnUiThread {
+                    atLive = viewModel.player.player.isPlaying && viewModel.player.player.currentLiveOffset < initialOffset + 5_000
+                }
+                atLive
             }
         }
     }

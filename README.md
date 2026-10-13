@@ -7,7 +7,7 @@ An unofficial Android app for watching Kick streams, chatting, and using Kick/7T
 Install a built APK on your phone, or use ADB:
 
 ```sh
-adb install -r artifacts/punt-0.6.0.apk
+adb install -r artifacts/punt-0.6.1.apk
 ```
 
 Updates keep the same Android package ID and app data.
@@ -59,7 +59,23 @@ and GitHub Releases are separate publishing steps.
 
 ## How it works
 
-Kotlin and Jetpack Compose provide the interface; Media3 handles video playback. Kick's website endpoints provide streams, chat, account access, and native emotes. 7TV supplies global and channel emotes. Login uses Kick's own website in an app-private WebView.
+Kotlin and Jetpack Compose provide the interface; Media3 handles video playback.
+Audio continues with the screen off or while using another app, with playback
+controls in the media notification and on the lock screen. Video is disabled
+while the activity is stopped and restored when returning to the app or PiP.
+Pausing stays paused when returning. Leaving the channel or removing the app
+from recent tasks stops playback.
+
+Tap **LIVE** in the player controls to jump back to the live position and resume
+after pausing or falling behind. The indicator is green near live and gray
+while paused or behind. Streams recover automatically when playback falls
+outside the available live window.
+
+Kick's website endpoints provide streams, chat, account access, and native
+emotes. Chat discovers its current transport before connecting, supports
+Pusher and Centrifugo, and renews expiring connection tokens. 7TV supplies
+global and channel emotes. Login uses Kick's own website in an app-private
+WebView.
 
 The picker puts owned collectibles and accessible channel emotes first, then your most-used emotes. Usage is saved on this device after successful sends. Picking an emote edits the draft; press Send to send it.
 

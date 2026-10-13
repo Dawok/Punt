@@ -22,6 +22,55 @@ import org.junit.Test
 class PictureInPictureSmokeTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun lockingScreenKeepsAudioPlayingAndReturningRestoresVideo() {
+        val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
+        compose.onNodeWithText("Try a sample stream").performClick()
+        compose.waitUntil(90_000) {
+            var playing = false
+            compose.runOnUiThread { playing = stream.player.player.isPlaying }
+            playing
+        }
+        try {
+            shell("input keyevent 223")
+            compose.waitUntil(15_000) { !compose.activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) }
+            var position = 0L
+            compose.runOnUiThread {
+                assertTrue(stream.player.player.playWhenReady)
+                assertTrue(stream.player.player.trackSelectionParameters.disabledTrackTypes.contains(androidx.media3.common.C.TRACK_TYPE_VIDEO))
+                position = stream.player.player.currentPosition
+            }
+            compose.waitUntil(15_000) {
+                var advanced = false
+                compose.runOnUiThread { advanced = stream.player.player.isPlaying && stream.player.player.currentPosition > position + 1_000 }
+                advanced
+            }
+        } finally {
+            shell("input keyevent 224")
+            shell("input keyevent 82")
+            resumeApp()
+        }
+        compose.runOnUiThread {
+            assertTrue(stream.player.player.playWhenReady)
+            assertFalse(stream.player.player.trackSelectionParameters.disabledTrackTypes.contains(androidx.media3.common.C.TRACK_TYPE_VIDEO))
+        }
+    }
+
+    @Test fun lockingAndUnlockingDoesNotResumeManuallyPausedPlayback() {
+        val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]
+        compose.onNodeWithText("Try a sample stream").performClick()
+        compose.runOnUiThread { stream.player.player.pause() }
+        try {
+            shell("input keyevent 223")
+            compose.waitUntil(15_000) { !compose.activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) }
+            compose.runOnUiThread { assertFalse(stream.player.player.playWhenReady) }
+        } finally {
+            shell("input keyevent 224")
+            shell("input keyevent 82")
+            resumeApp()
+        }
+        compose.runOnUiThread { assertFalse(stream.player.player.playWhenReady) }
+    }
+
     @Test fun switchingAppsEntersPipKeepsVideoPlayingAndRestoresChat() {
         assumeTrue(compose.activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE))
         val stream = ViewModelProvider(compose.activity)[StreamViewModel::class.java]

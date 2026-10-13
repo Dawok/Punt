@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,11 +87,19 @@ fun VideoPlayer(
             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent)))
                 .padding(start = 10.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (channel.isLive && !channel.isDemo) Box(Modifier.size(4.dp).background(KickGreen, RoundedCornerShape(2.dp)))
-                    Text(if (channel.isDemo) "SAMPLE" else if (channel.isLive) "LIVE" else "OFFLINE", color = Color.White,
-                        fontWeight = FontWeight.SemiBold, fontSize = 10.sp, modifier = Modifier.padding(start = if (channel.isLive && !channel.isDemo) 5.dp else 0.dp))
-                    if (channel.isLive && !channel.isDemo) Text(" · ${compactCount(channel.viewers)}", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp,
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (channel.isLive && !channel.isDemo && channel.playbackUrl != null) {
+                        val atLive = state.playWhenReady && state.liveOffsetMs?.let { it <= 10_000 } == true
+                        TextButton(onClick = controller::goLive,
+                            modifier = Modifier.testTag("go-live").semantics { contentDescription = "Go live" }.heightIn(min = 48.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp)) {
+                            Box(Modifier.size(6.dp).background(if (atLive) KickGreen else Color.White.copy(alpha = 0.5f), RoundedCornerShape(3.dp)))
+                            Text("LIVE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
+                                modifier = Modifier.padding(start = 6.dp))
+                        }
+                    } else Text(if (channel.isDemo) "SAMPLE" else if (channel.isLive) "LIVE" else "OFFLINE", color = Color.White,
+                        fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+                    if (channel.isLive && !channel.isDemo) Text("${compactCount(channel.viewers)}", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp,
                         style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"))
                 }
                 Spacer(Modifier.weight(1f))

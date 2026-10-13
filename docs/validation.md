@@ -1,4 +1,48 @@
-# Punt 0.5.1 verification
+# Punt 0.6.1 verification
+
+- Reproduced the old chat endpoint rejecting its compiled Pusher key. Kick's
+  current website discovers the transport through
+  `/api/v1/realtime/channels/{channelId}/chat/connection` on its web API. The app
+  now discovers that transport on each connection attempt and supports both
+  Pusher and Centrifugo, including batched publications, heartbeats, connection
+  token renewal, and reconnects. Discovery uses the channel ID; subscriptions
+  use the separate chatroom ID.
+- A direct public-service protocol probe received 61 compatible chat messages,
+  answered the server heartbeat, and successfully renewed the connection
+  token. This verifies the current service protocol independently of the
+  Android app; no messages were posted to chat.
+- All 49 JVM tests pass. New regression coverage checks dynamic Pusher routing,
+  Centrifugo authorization/subscription, batched message delivery, heartbeat
+  replies, token renewal, and immediate retry after a rejected Pusher key.
+- Debug, Android test, and optimized preview APKs build successfully. Android
+  lint passes. The optimized preview signature verifies; the APK is about
+  4.9 MiB, with version code 9 / version 0.6.1 and the existing application ID.
+  An installable copy is available at `artifacts/punt-0.6.1.apk`.
+- Playback is shared with a Media3 media session service, with notification and
+  lock-screen controls and network wake locks. Activity stop disables video
+  while audio continues; activity start restores video without overriding a
+  manual pause. Removing the task stops playback. The stream screen state is
+  retained in the application while the service continues playing.
+- The accessible LIVE button seeks to the stream's default live position and
+  resumes playback. Its 48 dp touch target and green/gray live indicator follow
+  the existing Compose controls. Falling outside the live window triggers
+  recovery while preserving whether playback was paused.
+
+Device checks were added for screen-off audio, video restoration, preserving a
+manual pause through screen lock, and returning to live after pausing a real
+stream. They compile but were **not run**: no device is attached, and emulator
+startup is blocked by unavailable KVM permissions. Notification behavior,
+screen-off playback, LIVE-button interaction, and PiP compatibility still need
+verification on a device. Long-duration network changes and battery behavior
+remain unverified.
+
+Playback implementation follows the Android documentation for
+[background playback](https://developer.android.com/media/media3/session/background-playback)
+and [live streaming](https://developer.android.com/media/media3/exoplayer/live-streaming).
+The chat framing follows the
+[Centrifugo protocol](https://centrifugal.dev/docs/transports/client_protocol).
+
+## Earlier version 0.5.1 verification
 
 - Renamed the app label, home header, settings branding, launcher monogram, application/UI classes, Gradle root project, and T3 project to Punt. Public HTTP and player user agents use the new name and current build version.
 - The Android application ID remains `app.kickpocket` to support updating existing installations and retaining their app data.
