@@ -13,13 +13,22 @@ android {
         applicationId = "app.kickpocket"
         minSdk = 28
         targetSdk = 36
-        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 12
-        versionName = "0.6.4"
+        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 13
+        versionName = "0.6.5"
         val updateFeed = providers.environmentVariable("UPDATE_MANIFEST_URL").orNull
             ?: providers.environmentVariable("GITHUB_REPOSITORY").orNull
                 ?.let { "https://github.com/$it/releases/latest/download/update.json" }.orEmpty()
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"${updateFeed.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("preview") {
+            initWith(getByName("debug"))
+            providers.environmentVariable("ANDROID_PREVIEW_KEYSTORE").orNull?.let {
+                storeFile = file(it)
+            }
+        }
     }
 
     buildTypes {
@@ -30,7 +39,7 @@ android {
         }
         create("preview") {
             initWith(getByName("release"))
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("preview")
             matchingFallbacks += listOf("release")
         }
     }

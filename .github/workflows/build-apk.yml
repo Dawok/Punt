@@ -53,9 +53,10 @@ jobs:
           PUBLISHING_BUILD: ${{ github.ref == 'refs/heads/main' }}
         run: |
           if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            install -d -m 700 "$HOME/.android"
-            printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
-            chmod 600 "$HOME/.android/debug.keystore"
+            signing_keystore="$RUNNER_TEMP/punt-signing.keystore"
+            printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$signing_keystore"
+            chmod 600 "$signing_keystore"
+            echo "ANDROID_PREVIEW_KEYSTORE=$signing_keystore" >> "$GITHUB_ENV"
           elif [ "$PUBLISHING_BUILD" = "true" ]; then
             echo '::error::Configure ANDROID_DEBUG_KEYSTORE_BASE64 before publishing updatable APKs.'
             exit 1
@@ -68,6 +69,14 @@ jobs:
 
       - name: Build optimized preview APK
         run: ./gradlew --no-daemon :app:assemblePreview
+
+      - name: Verify APK uses the saved signing key
+        if: env.ANDROID_PREVIEW_KEYSTORE != ''
+        run: |
+          bash .github/scripts/verify-apk-signing.sh \
+            "$ANDROID_PREVIEW_KEYSTORE" \
+            app/build/outputs/apk/preview/app-preview.apk \
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
       - name: Prepare download
         id: package
