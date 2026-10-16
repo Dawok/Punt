@@ -63,6 +63,8 @@ import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.decode.BitmapFactoryDecoder
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
@@ -79,22 +81,6 @@ fun ChatPanel(
     // Subscribe here so message updates never recompose the player or the screen shell.
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
-    val dragging by listState.interactionSource.collectIsDraggedAsState()
-    var following by remember { mutableStateOf(true) }
-
-    // Only explicit user scrolling changes following. Arriving messages cannot disable it.
-    LaunchedEffect(dragging) {
-        if (dragging) following = false
-    }
-    LaunchedEffect(listState) {
-        snapshotFlow { !listState.canScrollBackward && !listState.isScrollInProgress }
-            .distinctUntilChanged().collect { atBottom -> if (atBottom) following = true }
-    }
-    LaunchedEffect(messages.firstOrNull()?.id, following) {
-        if (following && messages.isNotEmpty()) listState.scrollToItem(0)
-    }
-
     Column(modifier.background(AppBackground)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -104,32 +90,66 @@ fun ChatPanel(
         if (warnings.isNotEmpty()) {
             Text(warnings.joinToString(" "), color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp))
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (messages.isEmpty()) {
-                Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (connection == ChatConnection.Connected) "You're all caught up" else "Connecting to chat…", fontWeight = FontWeight.Medium)
-                    Text(if (connection == ChatConnection.Connected) "New messages will appear here." else "Messages will appear when connected.", color = SubtleColor, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                }
-            }
-            LazyColumn(
-                state = listState, reverseLayout = true,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(9.dp, Alignment.Bottom),
-            ) {
-                items(messages.asReversed(), key = { it.id }, contentType = { "message" }) { message ->
-                    ChatRow(message, emotes, preferences.chatFontSize, preferences.animatedEmotes)
-                }
-            }
-            if (!following && messages.isNotEmpty()) {
-                FilledTonalButton(onClick = { following = true }, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)) {
-                    Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Jump to live", fontSize = 12.sp)
-                }
+        ChatMessageList(messages, connection, emotes, preferences, Modifier.weight(1f).fillMaxWidth())
+        SessionChatComposer(viewModel, sample, emotes, preferences.animatedEmotes, preferences.emoteUsage, onLogin, onPickerVisibility)
+    }
+}
+
+@Composable
+internal fun ChatMessageList(
+    messages: List<ChatMessage>,
+    connection: ChatConnection,
+    emotes: Map<String, Emote>,
+    preferences: AppPreferences,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    val dragging by listState.interactionSource.collectIsDraggedAsState()
+    var following by remember { mutableStateOf(true) }
+    val bottomTolerance = with(LocalDensity.current) { 24.dp.roundToPx() }
+
+    // Pause only for a user gesture; new messages must never turn following off.
+    // A small tolerance lets scrolling back to the newest message reliably resume it.
+    LaunchedEffect(listState, bottomTolerance) {
+        snapshotFlow {
+            Triple(dragging, listState.isScrollInProgress,
+                !listState.canScrollBackward ||
+                    (listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= bottomTolerance))
+        }.distinctUntilChanged().collect { (dragged, scrolling, atBottom) ->
+            if (dragged) following = false
+            else if (!scrolling && atBottom) following = true
+        }
+    }
+    // Messages are chronological, while the list is reversed: the LAST message is newest.
+    // Track its ID even when the bounded buffer stays the same size.
+    LaunchedEffect(messages.lastOrNull()?.id, following, dragging) {
+        if (following && !dragging && messages.isNotEmpty()) listState.requestScrollToItem(0)
+    }
+
+    Box(modifier) {
+        if (messages.isEmpty()) {
+            Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (connection == ChatConnection.Connected) "You're all caught up" else "Connecting to chat…", fontWeight = FontWeight.Medium)
+                Text(if (connection == ChatConnection.Connected) "New messages will appear here." else "Messages will appear when connected.", color = SubtleColor, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
             }
         }
-        SessionChatComposer(viewModel, sample, emotes, preferences.animatedEmotes, preferences.emoteUsage, onLogin, onPickerVisibility)
+        LazyColumn(
+            state = listState, reverseLayout = true,
+            modifier = Modifier.fillMaxSize().testTag("chat-messages"),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp, Alignment.Bottom),
+        ) {
+            items(messages.asReversed(), key = { it.id }, contentType = { "message" }) { message ->
+                ChatRow(message, emotes, preferences.chatFontSize, preferences.animatedEmotes)
+            }
+        }
+        if (!following && messages.isNotEmpty()) {
+            FilledTonalButton(onClick = { following = true }, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)) {
+                Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Jump to live", fontSize = 12.sp)
+            }
+        }
     }
 }
 
