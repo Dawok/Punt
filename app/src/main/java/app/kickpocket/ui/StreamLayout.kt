@@ -23,6 +23,7 @@ import app.kickpocket.StreamState
 import app.kickpocket.StreamViewModel
 import app.kickpocket.data.AppPreferences
 import app.kickpocket.data.RecentChannel
+import app.kickpocket.data.ChannelTab
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private enum class StreamPart { Video, Header, Title, Chat, Error }
@@ -44,10 +45,12 @@ fun StreamLayout(
     val channel = requireNotNull(state.channel)
     val follow by viewModel.followState.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
+    val library by viewModel.library.collectAsStateWithLifecycle()
     Layout(modifier = Modifier.fillMaxSize().background(if (landscape || pip || fullscreen) Color.Black else AppBackground), content = {
         // This remains the first child in every mode. Do not move it into conditional layouts.
         VideoPlayer(channel, viewModel.player, state.loading, viewModel::retryPlayback,
-            Modifier.layoutId(StreamPart.Video), fullscreen = fullscreen, onFullscreen = onFullscreen, pip = pip)
+            Modifier.layoutId(StreamPart.Video), fullscreen = fullscreen, onFullscreen = onFullscreen, pip = pip,
+            recording = state.recording, playbackError = state.error.takeIf { state.recording != null })
         if (!pip && !fullscreen) {
             Row(Modifier.layoutId(StreamPart.Header).background(AppBackground).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = viewModel::leave) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to channels") }
@@ -69,11 +72,18 @@ fun StreamLayout(
                 }
                 IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings", tint = SubtleColor) }
             }
-            Box(Modifier.layoutId(StreamPart.Title)) { StreamTitle(channel) }
-            ChatPanel(viewModel, state.emotes, state.emoteWarnings, preferences, channel.isDemo,
-                Modifier.layoutId(StreamPart.Chat), onLogin = onLogin, onPickerVisibility = onPickerVisibility)
+            Box(Modifier.layoutId(StreamPart.Title)) { StreamTitle(channel, state.recording?.title) }
+            Column(Modifier.layoutId(StreamPart.Chat)) {
+                if (!channel.isDemo) ChannelTabs(library.tab, viewModel::selectLibraryTab)
+                if (library.tab == ChannelTab.Live) {
+                    ChatPanel(viewModel, state.emotes, state.emoteWarnings, preferences, channel.isDemo,
+                        Modifier.weight(1f).fillMaxWidth(), onLogin = onLogin, onPickerVisibility = onPickerVisibility)
+                } else ChannelRecordings(library, state.recording?.id, viewModel::openRecording,
+                    onRefresh = { viewModel.loadLibrary() }, onMore = { viewModel.loadLibrary(more = true) },
+                    modifier = Modifier.weight(1f).fillMaxWidth())
+            }
             Column(Modifier.layoutId(StreamPart.Error)) {
-                state.error?.let { ErrorCard(it) }
+                state.error?.takeIf { state.recording == null }?.let { ErrorCard(it) }
                 follow.error?.let { ErrorCard(it) }
             }
         }

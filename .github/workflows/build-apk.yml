@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       version_name: ${{ steps.package.outputs.version_name }}
+      release_tag: ${{ steps.package.outputs.release_tag }}
 
     steps:
       - name: Check out source
@@ -87,7 +88,7 @@ jobs:
             --metadata app/build/outputs/apk/preview/output-metadata.json \
             --apk artifacts/punt.apk \
             --output artifacts/update.json \
-            --apk-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}/punt.apk"
+            --release-base-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download"
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
@@ -129,9 +130,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.build.outputs.version_name }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
         run: |
           test -s artifacts/punt.apk
-          release_tag="build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::notice::Release $RELEASE_TAG already exists. Bump versionName to publish a new release."
+            exit 0
+          fi
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
           Automatically built preview APK from main.
 
@@ -140,7 +145,7 @@ jobs:
 
           Download punt.apk below and install it on your Android device.
           EOF
-          gh release create "$release_tag" artifacts/punt.apk artifacts/update.json \
+          gh release create "$RELEASE_TAG" artifacts/punt.apk artifacts/update.json \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Punt ${RELEASE_VERSION}" \

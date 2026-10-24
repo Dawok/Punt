@@ -16,11 +16,23 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class ApiException(val status: Int, message: String) : IOException(message)
 data class EmoteCatalog(val emotes: Map<String, Emote>, val warnings: List<String>)
 
 class KickRepository(val http: OkHttpClient = defaultHttpClient()) {
+    suspend fun videos(channel: KickChannel): RecordingPage = MediaParser.videos(getJson(MediaRequests.videos(channel.id)), channel.slug)
+
+    suspend fun clips(channel: KickChannel, cursor: String? = null): RecordingPage =
+        MediaParser.clips(getJson(MediaRequests.clips(channel.id, cursor)), channel.slug)
+
+    suspend fun clip(id: String): ChannelRecording = MediaParser.clip(getJson(MediaRequests.clip(id)))
+
+    suspend fun videoPlayback(recording: ChannelRecording): ChannelRecording =
+        MediaParser.playback(getJson(MediaRequests.playback(recording.id), MediaRequests.playbackBody), recording)
+
     suspend fun streams(category: CategoryCard? = null, cursor: String? = null): BrowsePage<ChannelCard> {
         return DiscoveryParser.streams(getJson(DiscoveryRequests.streams(category, cursor, BrowseSort.Viewers).toString()))
     }
@@ -57,10 +69,11 @@ class KickRepository(val http: OkHttpClient = defaultHttpClient()) {
         emptyMap<String, Emote>() to "$label are unavailable."
     }
 
-    internal suspend fun getJson(url: String): JsonElement = withContext(Dispatchers.IO) {
+    internal suspend fun getJson(url: String, body: String? = null): JsonElement = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url)
             .header("Accept", "application/json")
             .header("User-Agent", "Punt/${app.kickpocket.BuildConfig.VERSION_NAME} (Android)")
+            .apply { body?.let { post(it.toRequestBody("application/json; charset=utf-8".toMediaType())) } }
             .build()
         val body = http.newCall(request).awaitBody()
         try { AppJson.parseToJsonElement(body) } catch (_: Exception) {

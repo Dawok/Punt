@@ -55,6 +55,17 @@ class MainActivity : ComponentActivity() {
         ContextCompat.registerReceiver(this, pipReceiver, IntentFilter(pipAction), ContextCompat.RECEIVER_NOT_EXPORTED)
         lifecycleScope.launch { combine(stream.state, stream.player.state) { _, _ -> Unit }.collect { updatePipParams() } }
         setContent { PuntTheme { PuntApp(stream, browse, pip) } }
+        if (savedInstanceState == null) openLink(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openLink(intent)
+    }
+
+    private fun openLink(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) intent.dataString?.let(stream::open)
     }
 
     override fun onStart() {
@@ -94,10 +105,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun pipEligible(): Boolean = supportsPip && !pipSuppressed &&
-        stream.state.value.channel?.isLive == true && stream.state.value.channel?.playbackUrl != null &&
-        stream.player.state.value.playWhenReady && stream.player.state.value.error == null &&
-        (stream.player.state.value.playing || stream.player.state.value.buffering)
+    private fun pipEligible(): Boolean {
+        val current = stream.state.value
+        val playable = current.recording?.playbackUrl != null ||
+            (current.recording == null && current.channel?.isLive == true && current.channel.playbackUrl != null)
+        return supportsPip && !pipSuppressed && playable &&
+            stream.player.state.value.playWhenReady && stream.player.state.value.error == null &&
+            (stream.player.state.value.playing || stream.player.state.value.buffering)
+    }
 
     private fun pipParams(): PictureInPictureParams {
         val playing = stream.player.player.playWhenReady

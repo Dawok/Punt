@@ -68,7 +68,7 @@ fun PuntApp(viewModel: StreamViewModel, browseModel: BrowseViewModel, pipState: 
     val keyboard = LocalSoftwareKeyboardController.current
     val channel = state.channel
 
-    LaunchedEffect(channel?.slug) { if (channel != null) keyboard?.hide() else fullscreen = false }
+    LaunchedEffect(channel?.slug, state.recording?.id) { if (channel != null) keyboard?.hide() else fullscreen = false }
     LaunchedEffect(login, settings, emotePicker) { (activity as? MainActivity)?.suppressPip(login || settings || emotePicker) }
     DisposableEffect(fullscreen, pip) {
         val insets = WindowCompat.getInsetsController(activity.window, activity.window.decorView)

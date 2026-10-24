@@ -228,7 +228,7 @@ class PlayerController(private val context: Context, private val preferences: Pr
             })
         }
 
-    fun load(url: String, live: Boolean, title: String = "Stream", artist: String = "Punt") {
+    fun load(url: String, live: Boolean, title: String = "Stream", artist: String = "Punt", startPositionMs: Long = 0) {
         cancelRecovery()
         recovery.reset()
         recoverableFailure = false
@@ -241,11 +241,13 @@ class PlayerController(private val context: Context, private val preferences: Pr
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
         applyQuality()
-        val item = MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8)
+        val item = MediaItem.Builder().setUri(url)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist(artist).build())
+        if (android.net.Uri.parse(url).lastPathSegment?.endsWith(".m3u8", ignoreCase = true) == true)
+            item.setMimeType(MimeTypes.APPLICATION_M3U8)
         if (live) item.setLiveConfiguration(MediaItem.LiveConfiguration.Builder()
             .setTargetOffsetMs(6_000).setMaxPlaybackSpeed(1.03f).build())
-        player.setMediaItem(item.build())
+        player.setMediaItem(item.build(), if (live) C.TIME_UNSET else startPositionMs.coerceAtLeast(0))
         player.prepare()
         player.playWhenReady = true
         mutable.update { it.copy(playWhenReady = player.playWhenReady) }

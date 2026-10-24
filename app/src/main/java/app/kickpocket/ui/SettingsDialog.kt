@@ -37,6 +37,11 @@ import app.kickpocket.data.AppPreferences
 import app.kickpocket.player.QualityPreferences
 import app.kickpocket.update.UpdateState
 import kotlin.math.roundToInt
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun SettingsDialog(
@@ -53,6 +58,7 @@ fun SettingsDialog(
     onInstallUpdate: () -> Unit,
     onCancelDownload: () -> Unit,
 ) {
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Make yourself comfortable", fontSize = 20.sp, fontWeight = FontWeight.SemiBold) },
@@ -84,6 +90,11 @@ fun SettingsDialog(
                 Text("viewer  Looks good from here.", fontSize = preferences.chatFontSize.sp, color = MaterialTheme.colorScheme.onSurface)
                 HorizontalDivider()
                 TextButton(onClick = onClearRecent, enabled = preferences.recentChannels.isNotEmpty()) { Text("Clear recent channels") }
+                TextButton(onClick = {
+                    val action = if (Build.VERSION.SDK_INT >= 31) Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS
+                        else Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                    context.startActivity(Intent(action, Uri.parse("package:${context.packageName}")))
+                }) { Text("Open Kick links in Punt") }
                 HorizontalDivider()
                 Text("App updates", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 updates.error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }

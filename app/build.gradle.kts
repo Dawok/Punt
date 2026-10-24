@@ -13,8 +13,8 @@ android {
         applicationId = "app.kickpocket"
         minSdk = 28
         targetSdk = 36
-        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 13
-        versionName = "0.6.5"
+        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 14
+        versionName = "0.6.6"
         val updateFeed = providers.environmentVariable("UPDATE_MANIFEST_URL").orNull
             ?: providers.environmentVariable("GITHUB_REPOSITORY").orNull
                 ?.let { "https://github.com/$it/releases/latest/download/update.json" }.orEmpty()

@@ -120,6 +120,9 @@ class KickSession(context: Context) {
         request("https://kick.com/api/v2/messages/send/$chatroomId", SessionRequests.chatBody(content, emotes))
     }
 
+    suspend fun videoPlayback(recording: ChannelRecording): ChannelRecording =
+        MediaParser.playback(request(MediaRequests.playback(recording.id), MediaRequests.playbackBody), recording)
+
     fun signOut() {
         revision++
         savedState.edit { putBoolean("has-session", false) }
@@ -168,7 +171,8 @@ internal object SessionRequests {
     fun build(url: HttpUrl, cookie: String?, userAgent: String, body: String? = null, method: String = if (body == null) "GET" else "POST"): Request {
         require(method in setOf("GET", "POST", "DELETE") && (method != "GET" || body == null))
         val allowed = url.host == "kick.com" || (url.host == "web.kick.com" && method == "GET" && body == null &&
-            url.encodedPath in setOf("/api/v1/recommendations/categories", "/api/v1/recommendations/livestreams/list"))
+            url.encodedPath in setOf("/api/v1/recommendations/categories", "/api/v1/recommendations/livestreams/list")) ||
+            (method == "POST" && MediaRequests.isPlayback(url))
         require(url.isHttps && allowed && url.port == 443) { "Account requests must use Kick's secure website." }
         val token = cookieValue(cookie, "session_token") ?: throw ApiException(401, "Sign in to your Kick account first.")
         val csrf = cookieValue(cookie, "XSRF-TOKEN")
