@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import app.kickpocket.data.BrowseSort
 import app.kickpocket.data.CategoryCard
 import app.kickpocket.data.ChannelCard
+import app.kickpocket.data.KickSearch
+import app.kickpocket.data.KickSearchState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -33,6 +36,26 @@ class BrowseViewModel(application: Application) : AndroidViewModel(application) 
     private val mutableFollowed = MutableStateFlow<List<ChannelCard>>(emptyList())
     val followedChannels = mutableFollowed.asStateFlow()
     private var loadJob: Job? = null
+    private var searchJob: Job? = null
+    private val mutableSearch = MutableStateFlow(KickSearchState())
+    val search = mutableSearch.asStateFlow()
+
+    fun search(input: String) {
+        searchJob?.cancel()
+        val query = KickSearch.query(input)
+        if (query == null) { mutableSearch.value = KickSearchState(); return }
+        mutableSearch.value = KickSearchState(query = query, loading = true)
+        searchJob = viewModelScope.launch {
+            delay(350)
+            try {
+                val result = app.repository.search(query)
+                if (mutableSearch.value.query == query) mutableSearch.value = KickSearchState(query, result = result)
+            } catch (error: CancellationException) { throw error }
+            catch (error: Exception) {
+                if (mutableSearch.value.query == query) mutableSearch.value = KickSearchState(query, error = error.message ?: "Could not search Kick.")
+            }
+        }
+    }
 
     init {
         refresh()

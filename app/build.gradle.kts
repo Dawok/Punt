@@ -13,8 +13,8 @@ android {
         applicationId = "app.kickpocket"
         minSdk = 28
         targetSdk = 36
-        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 14
-        versionName = "0.6.6"
+        versionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toInt() ?: 15
+        versionName = "0.7.0"
         val updateFeed = providers.environmentVariable("UPDATE_MANIFEST_URL").orNull
             ?: providers.environmentVariable("GITHUB_REPOSITORY").orNull
                 ?.let { "https://github.com/$it/releases/latest/download/update.json" }.orEmpty()
@@ -62,6 +62,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
     implementation("androidx.media3:media3-session:1.8.0")

@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import app.kickpocket.data.ChannelLibraryState
 import app.kickpocket.data.ChannelRecording
 import app.kickpocket.data.ChannelTab
+import app.kickpocket.data.VideoLibrary
 import coil3.compose.AsyncImage
 import java.time.Instant
 import java.time.ZoneId
@@ -46,6 +49,8 @@ internal fun ChannelRecordings(
     onRefresh: () -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
+    saved: Set<String> = emptySet(),
+    onSave: (ChannelRecording) -> Unit = {},
 ) {
     Column(modifier.background(AppBackground)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -73,7 +78,8 @@ internal fun ChannelRecordings(
                     color = SubtleColor, modifier = Modifier.padding(12.dp))
             }
             items(state.items, key = { it.id }) { recording ->
-                RecordingCard(recording, selectedId == recording.id) { onOpen(recording) }
+                RecordingCard(recording, selectedId == recording.id, VideoLibrary.key(recording) in saved,
+                    onSave = { onSave(recording) }, onOpen = { onOpen(recording) })
             }
             if (state.tab == ChannelTab.Clips && state.clipsCursor != null) item {
                 OutlinedButton(onClick = onMore, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
@@ -86,7 +92,7 @@ internal fun ChannelRecordings(
 }
 
 @Composable
-private fun RecordingCard(recording: ChannelRecording, selected: Boolean, onOpen: () -> Unit) {
+private fun RecordingCard(recording: ChannelRecording, selected: Boolean, saved: Boolean, onSave: () -> Unit, onOpen: () -> Unit) {
     Surface(onClick = onOpen, color = if (selected) MaterialTheme.colorScheme.secondaryContainer else PanelColor,
         shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().testTag("recording-${recording.id}")) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -109,6 +115,10 @@ private fun RecordingCard(recording: ChannelRecording, selected: Boolean, onOpen
                     color = SubtleColor, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (recording.availability == "sub_only") Text("Subscribers only", fontSize = 10.sp, color = SubtleColor)
                 if (selected) Text("Selected", fontSize = 10.sp, color = KickGreen)
+            }
+            IconButton(onClick = onSave) {
+                Icon(if (saved) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                    if (saved) "Remove from watch later" else "Save to watch later", tint = if (saved) KickGreen else SubtleColor)
             }
         }
     }

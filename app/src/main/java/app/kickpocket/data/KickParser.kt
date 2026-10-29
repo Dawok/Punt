@@ -23,6 +23,7 @@ object KickParser {
             category = categories.firstOrNull()?.asObject()?.text("name") ?: "",
             viewers = live?.number("viewer_count") ?: live?.number("viewers") ?: 0,
             verified = root.flag("verified"),
+            liveSessionId = live?.text("id") ?: live?.text("start_time"),
         )
     }
 

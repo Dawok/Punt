@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.kickpocket.StreamViewModel
 import app.kickpocket.chat.ChatToken
 import app.kickpocket.chat.ChatTokenizer
+import app.kickpocket.chat.ChatFilters
 import app.kickpocket.data.AppPreferences
 import app.kickpocket.data.ChatConnection
 import app.kickpocket.data.ChatMessage
@@ -81,16 +82,22 @@ fun ChatPanel(
     // Subscribe here so message updates never recompose the player or the screen shell.
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
+    val account by viewModel.account.collectAsStateWithLifecycle()
+    val visible = remember(messages, preferences.hiddenChatUsers, preferences.hiddenChatKeywords, preferences.reduceRepeatedMessages) {
+        ChatFilters.visible(messages, preferences)
+    }
+    val hidden = messages.size - visible.size
     Column(modifier.background(AppBackground)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (sample) "Sample chat" else "Stream chat", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(if (sample) "Sample chat" else "Stream chat" + if (hidden > 0) " · $hidden hidden" else "", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
             ConnectionLabel(connection, sample)
         }
         if (warnings.isNotEmpty()) {
             Text(warnings.joinToString(" "), color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp))
         }
-        ChatMessageList(messages, connection, emotes, preferences, Modifier.weight(1f).fillMaxWidth())
+        ChatMessageList(visible, connection, emotes, preferences, Modifier.weight(1f).fillMaxWidth(),
+            mentionUsername = account.account?.username.takeIf { preferences.highlightMentions })
         SessionChatComposer(viewModel, sample, emotes, preferences.animatedEmotes, preferences.emoteUsage, onLogin, onPickerVisibility)
     }
 }
@@ -102,6 +109,7 @@ internal fun ChatMessageList(
     emotes: Map<String, Emote>,
     preferences: AppPreferences,
     modifier: Modifier = Modifier,
+    mentionUsername: String? = null,
 ) {
     val listState = rememberLazyListState()
     val dragging by listState.interactionSource.collectIsDraggedAsState()
@@ -140,7 +148,8 @@ internal fun ChatMessageList(
             verticalArrangement = Arrangement.spacedBy(9.dp, Alignment.Bottom),
         ) {
             items(messages.asReversed(), key = { it.id }, contentType = { "message" }) { message ->
-                ChatRow(message, emotes, preferences.chatFontSize, preferences.animatedEmotes)
+                ChatRow(message, emotes, preferences.chatFontSize, preferences.animatedEmotes,
+                    highlighted = ChatFilters.mentions(message.content, mentionUsername))
             }
         }
         if (!following && messages.isNotEmpty()) {
@@ -191,7 +200,7 @@ private fun ConnectionLabel(connection: ChatConnection, sample: Boolean) {
 }
 
 @Composable
-private fun ChatRow(message: ChatMessage, emotes: Map<String, Emote>, size: Int, animatedEmotes: Boolean) {
+private fun ChatRow(message: ChatMessage, emotes: Map<String, Emote>, size: Int, animatedEmotes: Boolean, highlighted: Boolean = false) {
     val tokens = remember(message.content, emotes) { ChatTokenizer.tokenize(message.content, emotes) }
     val usernameColor = remember(message.color) { readableNameColor(message.color) }
     val inline = tokens.mapIndexedNotNull { index, token ->
@@ -231,7 +240,8 @@ private fun ChatRow(message: ChatMessage, emotes: Map<String, Emote>, size: Int,
             }
         }
     }
-    Text(text, inlineContent = inline, fontSize = size.sp, lineHeight = (size * 1.65f).sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.fillMaxWidth())
+    Text(text, inlineContent = inline, fontSize = size.sp, lineHeight = (size * 1.65f).sp, color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.fillMaxWidth().then(if (highlighted) Modifier.background(KickGreen.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp) else Modifier))
 }
 
 @Composable

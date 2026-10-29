@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
         stream.foreground(true)
         stream.updates.checkIfDue()
         stream.updates.resumeInstallIfAllowed(this)
+        app.kickpocket.alerts.LiveAlerts.schedule(this)
     }
     override fun onStop() { stream.foreground(false); super.onStop() }
 

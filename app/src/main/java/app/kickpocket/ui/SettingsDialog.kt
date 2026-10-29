@@ -57,6 +57,8 @@ fun SettingsDialog(
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onCancelDownload: () -> Unit,
+    onChatFilters: () -> Unit = {},
+    onLiveAlerts: () -> Unit = {},
 ) {
     val context = LocalContext.current
     AlertDialog(
@@ -77,6 +79,7 @@ fun SettingsDialog(
                 QualitySetting("Wi-Fi", preferences.wifiQuality, onWifiQuality)
                 QualitySetting("Mobile data", preferences.mobileQuality, onMobileQuality)
                 Text("Your preference applies across channels. Lower resolutions stay adaptive up to the chosen quality.", fontSize = 12.sp, lineHeight = 18.sp)
+                Text("Recordings: double-tap to skip 10 seconds; hold for 2× speed. Swipe vertically on the left for brightness, or the right for volume.", fontSize = 12.sp, lineHeight = 18.sp)
                 HorizontalDivider()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Chat text size", color = MaterialTheme.colorScheme.onSurface)
@@ -88,6 +91,8 @@ fun SettingsDialog(
                     modifier = Modifier.semantics { contentDescription = "Chat text size" },
                 )
                 Text("viewer  Looks good from here.", fontSize = preferences.chatFontSize.sp, color = MaterialTheme.colorScheme.onSurface)
+                TextButton(onClick = onChatFilters) { Text("Chat filters and mentions") }
+                TextButton(onClick = onLiveAlerts) { Text("Live alerts · ${preferences.liveAlertChannels.size} channels") }
                 HorizontalDivider()
                 TextButton(onClick = onClearRecent, enabled = preferences.recentChannels.isNotEmpty()) { Text("Clear recent channels") }
                 TextButton(onClick = {

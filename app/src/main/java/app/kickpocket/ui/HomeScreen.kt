@@ -10,6 +10,9 @@ import app.kickpocket.data.CategoryCard
 import app.kickpocket.data.ChannelCard
 import app.kickpocket.data.RecentChannel
 import app.kickpocket.data.ChannelSuggestions
+import app.kickpocket.data.KickSearchState
+import app.kickpocket.data.ChannelRecording
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -103,6 +106,10 @@ fun HomeScreen(
     followedChannels: List<ChannelCard>,
     onPin: (RecentChannel) -> Unit,
     updateVersion: String?,
+    search: KickSearchState = KickSearchState(),
+    onSearch: (String) -> Unit = {},
+    onLibrary: () -> Unit = {},
+    onOpenSaved: (ChannelRecording, Long?) -> Unit = { _, _ -> },
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var sortMenu by remember { mutableStateOf(false) }
@@ -122,6 +129,7 @@ fun HomeScreen(
                 BrandMark()
                 Text("PUNT", fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 1.sp,
                     modifier = Modifier.padding(start = 10.dp).weight(1f))
+                IconButton(onClick = onLibrary) { Icon(Icons.Outlined.VideoLibrary, "Your library", tint = SubtleColor) }
                 Box {
                     TextButton(onClick = { if (account.account == null) onLogin() else accountMenu = true }) {
                         Text(account.account?.username ?: "Log in", maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 110.dp))
@@ -144,8 +152,8 @@ fun HomeScreen(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Channel name or Kick link") },
+                    value = input, onValueChange = { input = it; onSearch(it) }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Search Kick or paste a link") },
                     leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true, enabled = !state.loading,
                     trailingIcon = {
                         IconButton(
@@ -165,6 +173,8 @@ fun HomeScreen(
                     keyboardActions = KeyboardActions(onGo = { if (input.isNotBlank() && !state.loading) onOpen(input) }),
                 )
                 state.error?.let { ErrorCard(it) }
+                SearchResults(search, onOpen, onCategory = { category -> input = ""; onSearch(""); onCategory(category) },
+                    onRetry = { onSearch(input) })
                 val suggestions = ChannelSuggestions.find(input, preferences, followedChannels, browse.channels)
                 if (suggestions.isNotEmpty()) Surface(color = PanelColor, shape = RoundedCornerShape(12.dp)) {
                     Column {
@@ -203,6 +213,9 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+        if (preferences.watchHistory.any { !it.completed }) item(span = { GridItemSpan(maxLineSpan) }) {
+            ContinueWatching(preferences, onOpenSaved)
         }
         if (preferences.recentChannels.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {

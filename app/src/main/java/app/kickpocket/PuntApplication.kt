@@ -25,6 +25,11 @@ class PuntApplication : Application(), SingletonImageLoader.Factory {
     val streamState = MutableStateFlow(StreamState())
     val updates by lazy { AppUpdater(this, preferences, repository.http) }
 
+    override fun onCreate() {
+        super.onCreate()
+        app.kickpocket.alerts.LiveAlerts.schedule(this)
+    }
+
     override fun newImageLoader(context: Context): ImageLoader = ImageLoader.Builder(context)
         .components {
             add(AnimatedImageDecoder.Factory())

@@ -30,6 +30,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import app.kickpocket.data.PreferenceStore
+import app.kickpocket.data.ChannelRecording
+import app.kickpocket.data.VideoLibrary
+import androidx.media3.common.PlaybackParameters
 
 data class VideoQuality(val id: String, val label: String, val group: TrackGroup, val index: Int)
 data class PlayerState(
@@ -42,6 +45,7 @@ data class PlayerState(
     val liveOffsetMs: Long? = null,
     val recovering: Boolean = false,
     val recoveryAttempt: Int = 0,
+    val speed: Float = 1f,
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -58,6 +62,8 @@ class PlayerController(private val context: Context, private val preferences: Pr
         .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Punt:playback-recovery").apply { setReferenceCounted(false) }
     private var pendingRetry: Runnable? = null
     private var loadedLive = false
+    private var activeRecording: ChannelRecording? = null
+    private var lastCheckpointAt = 0L
     private var recoverableFailure = false
     private var lastPosition = 0L
     private var lastProgressAt = 0L
@@ -95,6 +101,7 @@ class PlayerController(private val context: Context, private val preferences: Pr
             engine?.let { current ->
                 mutable.update { it.copy(liveOffsetMs = current.currentLiveOffset.takeIf { offset -> offset != C.TIME_UNSET }) }
                 val now = SystemClock.elapsedRealtime()
+                if (current.isPlaying && now - lastCheckpointAt >= 5_000) checkpoint()
                 if (current.currentPosition != lastPosition && current.isPlaying) {
                     lastPosition = current.currentPosition
                     lastProgressAt = now
@@ -185,18 +192,22 @@ class PlayerController(private val context: Context, private val preferences: Pr
                 }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                     mutable.update { it.copy(playWhenReady = playWhenReady) }
-                    if (!playWhenReady) cancelRecovery()
+                    if (!playWhenReady) { cancelRecovery(); checkpoint() }
                     else if (recoverableFailure && player.playbackState == Player.STATE_IDLE) scheduleRecovery()
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     mutable.update { it.copy(playing = isPlaying) }
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_ENDED) checkpoint(ended = true)
                     mutable.update { it.copy(buffering = playbackState == Player.STATE_BUFFERING, playWhenReady = player.playWhenReady) }
                     if (playbackState == Player.STATE_READY) {
                         cancelRecovery()
                         mutable.update { it.copy(error = null) }
                     }
+                }
+                override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                    mutable.update { it.copy(speed = playbackParameters.speed) }
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     val httpStatus = (error.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode
@@ -228,7 +239,11 @@ class PlayerController(private val context: Context, private val preferences: Pr
             })
         }
 
-    fun load(url: String, live: Boolean, title: String = "Stream", artist: String = "Punt", startPositionMs: Long = 0) {
+    fun load(url: String, live: Boolean, title: String = "Stream", artist: String = "Punt", startPositionMs: Long = 0,
+        recording: ChannelRecording? = null) {
+        checkpoint()
+        activeRecording = recording?.copy(playbackUrl = null)
+        lastCheckpointAt = SystemClock.elapsedRealtime()
         cancelRecovery()
         recovery.reset()
         recoverableFailure = false
@@ -242,17 +257,44 @@ class PlayerController(private val context: Context, private val preferences: Pr
             .clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
         applyQuality()
         val item = MediaItem.Builder().setUri(url)
+            .setMediaId(recording?.let(VideoLibrary::key) ?: "live")
             .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist(artist).build())
         if (android.net.Uri.parse(url).lastPathSegment?.endsWith(".m3u8", ignoreCase = true) == true)
             item.setMimeType(MimeTypes.APPLICATION_M3U8)
         if (live) item.setLiveConfiguration(MediaItem.LiveConfiguration.Builder()
             .setTargetOffsetMs(6_000).setMaxPlaybackSpeed(1.03f).build())
         player.setMediaItem(item.build(), if (live) C.TIME_UNSET else startPositionMs.coerceAtLeast(0))
+        player.setPlaybackSpeed(if (live) 1f else preferences.preferences.value.playbackSpeed)
         player.prepare()
         player.playWhenReady = true
         mutable.update { it.copy(playWhenReady = player.playWhenReady) }
         progressHandler.removeCallbacks(progress)
         progressHandler.post(progress)
+    }
+
+    private fun checkpoint(ended: Boolean = false) {
+        val recording = activeRecording ?: return
+        val current = engine ?: return
+        if (current.mediaItemCount == 0) return
+        if (current.currentMediaItem?.mediaId != VideoLibrary.key(recording)) return
+        preferences.checkpoint(recording, current.currentPosition, current.duration.takeIf { it != C.TIME_UNSET } ?: 0, ended)
+        lastCheckpointAt = SystemClock.elapsedRealtime()
+    }
+
+    fun speed(value: Float, persist: Boolean = true) {
+        if (loadedLive || !value.isFinite()) return
+        val speed = value.coerceIn(0.5f, 2f)
+        if (persist) preferences.update { it.copy(playbackSpeed = speed) }
+        player.setPlaybackSpeed(speed)
+    }
+
+    fun seekBy(offsetMs: Long) {
+        if (loadedLive) return
+        val current = player
+        if (!current.isCurrentMediaItemSeekable) return
+        val maximum = current.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: Long.MAX_VALUE
+        current.seekTo((current.currentPosition + offsetMs).coerceIn(0, maximum))
+        checkpoint()
     }
 
     fun quality(option: VideoQuality?) {
@@ -280,6 +322,8 @@ class PlayerController(private val context: Context, private val preferences: Pr
     }
 
     fun stop() {
+        checkpoint()
+        activeRecording = null
         cancelRecovery()
         progressHandler.removeCallbacks(progress)
         player.stop()
@@ -288,6 +332,8 @@ class PlayerController(private val context: Context, private val preferences: Pr
     }
 
     fun release() {
+        checkpoint()
+        activeRecording = null
         cancelRecovery()
         progressHandler.removeCallbacks(progress)
         if (watchingNetwork) {

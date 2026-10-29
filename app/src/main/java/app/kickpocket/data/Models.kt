@@ -16,6 +16,7 @@ data class KickChannel(
     val viewers: Long,
     val verified: Boolean = false,
     val isDemo: Boolean = false,
+    val liveSessionId: String? = null,
 )
 
 data class ChatMessage(
@@ -69,5 +70,14 @@ data class AppPreferences(
     val wifiQuality: Int = 0,
     val mobileQuality: Int = 0,
     val lastUpdateCheckMs: Long = 0,
+    val watchHistory: List<WatchProgress> = emptyList(),
+    val watchLater: List<ChannelRecording> = emptyList(),
+    val bookmarks: List<VideoBookmark> = emptyList(),
+    val playbackSpeed: Float = 1f,
+    val hiddenChatUsers: List<String> = emptyList(),
+    val hiddenChatKeywords: List<String> = emptyList(),
+    val reduceRepeatedMessages: Boolean = false,
+    val highlightMentions: Boolean = true,
+    val liveAlertChannels: List<RecentChannel> = emptyList(),
 )
 

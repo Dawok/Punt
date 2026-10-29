@@ -9,9 +9,13 @@ import kotlinx.serialization.json.doubleOrNull
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
+@Serializable
 enum class RecordingKind(val label: String) { Vod("VOD"), Clip("Clip") }
 
+@Serializable
 data class ChannelRecording(
     val id: String,
     val kind: RecordingKind,
@@ -22,7 +26,7 @@ data class ChannelRecording(
     val views: Long = 0,
     val createdAt: String? = null,
     val availability: String = "public",
-    val playbackUrl: String? = null,
+    @Transient val playbackUrl: String? = null,
 )
 
 data class RecordingPage(val items: List<ChannelRecording>, val cursor: String? = null)

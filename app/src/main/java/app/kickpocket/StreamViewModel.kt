@@ -17,6 +17,10 @@ import app.kickpocket.data.ChannelTab
 import app.kickpocket.data.KickLink
 import app.kickpocket.data.RecordingKind
 import app.kickpocket.data.ApiException
+import app.kickpocket.data.VideoLibrary
+import app.kickpocket.data.VideoBookmark
+import app.kickpocket.alerts.LiveAlerts
+import app.kickpocket.alerts.LiveAlertPolicy
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -162,7 +166,8 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                 if (recording != null) {
                     selectLibraryTab(if (recording.kind == RecordingKind.Vod) ChannelTab.Videos else ChannelTab.Clips)
                     mutable.update { it.copy(recording = recording, loading = true) }
-                    playRecording(recording, (link as? KickLink.Video)?.positionMs ?: 0)
+                    val position = when (link) { is KickLink.Video -> link.positionMs; is KickLink.Clip -> link.positionMs; else -> null }
+                    playRecording(recording, position ?: VideoLibrary.resume(preferences.value.watchHistory, recording))
                 } else {
                     if (channel.isLive) channel.playbackUrl?.let { player.load(it, true, channel.title, channel.displayName) }
                     startChat()
@@ -228,7 +233,34 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun openRecording(recording: ChannelRecording) = selectRecording(recording, 0)
+    fun openRecording(recording: ChannelRecording) =
+        selectRecording(recording, VideoLibrary.resume(preferences.value.watchHistory, recording))
+
+    fun openSaved(recording: ChannelRecording, positionMs: Long? = null) = open(VideoLibrary.link(recording, positionMs))
+    fun saveRecording(recording: ChannelRecording) = app.preferences.toggleWatchLater(recording)
+    fun bookmarkRecording() {
+        mutable.value.recording?.let { app.preferences.bookmark(it, player.player.currentPosition) }
+    }
+    fun removeHistory(recording: ChannelRecording) = app.preferences.update {
+        it.copy(watchHistory = it.watchHistory.filterNot { progress -> VideoLibrary.key(progress.recording) == VideoLibrary.key(recording) })
+    }
+    fun removeBookmark(bookmark: VideoBookmark) = app.preferences.update { it.copy(bookmarks = it.bookmarks - bookmark) }
+    fun chatFilters(users: List<String>, keywords: List<String>, repeats: Boolean, mentions: Boolean) = app.preferences.update {
+        it.copy(hiddenChatUsers = users, hiddenChatKeywords = keywords, reduceRepeatedMessages = repeats, highlightMentions = mentions)
+    }
+    fun toggleAlert(channel: RecentChannel) {
+        val enabled = preferences.value.liveAlertChannels.any { it.slug == channel.slug }
+        val storage = app.getSharedPreferences("live-alert-state", android.content.Context.MODE_PRIVATE)
+        storage.edit().remove(channel.slug).apply()
+        app.preferences.update { it.copy(liveAlertChannels = if (enabled) it.liveAlertChannels.filterNot { old -> old.slug == channel.slug }
+            else (it.liveAlertChannels + channel).take(50)) }
+        if (!enabled) {
+            mutable.value.channel?.takeIf { it.slug == channel.slug }?.let { current ->
+                storage.edit().putString(channel.slug, LiveAlertPolicy.session(current)).apply()
+            }
+        }
+        LiveAlerts.schedule(app, restart = true)
+    }
 
     private fun selectRecording(recording: ChannelRecording, positionMs: Long) {
         val channel = mutable.value.channel ?: return
@@ -261,7 +293,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         require(resolved.channelSlug == mutable.value.channel?.slug) { "This recording belongs to another channel." }
         mutable.update { it.copy(recording = resolved, loading = false, error = null) }
         player.load(requireNotNull(resolved.playbackUrl), false, resolved.title,
-            mutable.value.channel?.displayName ?: "Punt", startPositionMs = positionMs)
+            mutable.value.channel?.displayName ?: "Punt", startPositionMs = positionMs, recording = resolved)
     }
 
     private fun recordingError(error: Exception): String =

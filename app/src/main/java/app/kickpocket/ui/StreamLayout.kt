@@ -24,6 +24,7 @@ import app.kickpocket.StreamViewModel
 import app.kickpocket.data.AppPreferences
 import app.kickpocket.data.RecentChannel
 import app.kickpocket.data.ChannelTab
+import app.kickpocket.data.VideoLibrary
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private enum class StreamPart { Video, Header, Title, Chat, Error }
@@ -50,7 +51,9 @@ fun StreamLayout(
         // This remains the first child in every mode. Do not move it into conditional layouts.
         VideoPlayer(channel, viewModel.player, state.loading, viewModel::retryPlayback,
             Modifier.layoutId(StreamPart.Video), fullscreen = fullscreen, onFullscreen = onFullscreen, pip = pip,
-            recording = state.recording, playbackError = state.error.takeIf { state.recording != null })
+            recording = state.recording, playbackError = state.error.takeIf { state.recording != null },
+            saved = state.recording?.let { recording -> preferences.watchLater.any { VideoLibrary.key(it) == VideoLibrary.key(recording) } } == true,
+            onSave = { state.recording?.let(viewModel::saveRecording) }, onBookmark = viewModel::bookmarkRecording)
         if (!pip && !fullscreen) {
             Row(Modifier.layoutId(StreamPart.Header).background(AppBackground).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = viewModel::leave) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to channels") }
@@ -80,7 +83,8 @@ fun StreamLayout(
                         Modifier.weight(1f).fillMaxWidth(), onLogin = onLogin, onPickerVisibility = onPickerVisibility)
                 } else ChannelRecordings(library, state.recording?.id, viewModel::openRecording,
                     onRefresh = { viewModel.loadLibrary() }, onMore = { viewModel.loadLibrary(more = true) },
-                    modifier = Modifier.weight(1f).fillMaxWidth())
+                    modifier = Modifier.weight(1f).fillMaxWidth(), saved = preferences.watchLater.map(VideoLibrary::key).toSet(),
+                    onSave = viewModel::saveRecording)
             }
             Column(Modifier.layoutId(StreamPart.Error)) {
                 state.error?.takeIf { state.recording == null }?.let { ErrorCard(it) }

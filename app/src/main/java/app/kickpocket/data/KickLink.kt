@@ -8,8 +8,8 @@ enum class ChannelTab(val label: String) { Live("Live"), Videos("VODs"), Clips("
 sealed interface KickLink {
     data object Home : KickLink
     data class Channel(val slug: String, val tab: ChannelTab = ChannelTab.Live) : KickLink
-    data class Video(val slug: String, val id: String, val positionMs: Long = 0) : KickLink
-    data class Clip(val id: String) : KickLink
+    data class Video(val slug: String, val id: String, val positionMs: Long? = null) : KickLink
+    data class Clip(val id: String, val positionMs: Long? = null) : KickLink
 
     companion object {
         internal val videoId = Regex("[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
@@ -28,9 +28,9 @@ sealed interface KickLink {
             url.queryParameter("clip")?.let {
                 require(path.size == 1 && clipId.matches(it)) { "This Kick clip link is invalid." }
                 channel(path[0])
-                return Clip(it)
+                return Clip(it, position(url.queryParameter("t")))
             }
-            if (path.size == 2 && path[0] == "clips" && clipId.matches(path[1])) return Clip(path[1])
+            if (path.size == 2 && path[0] == "clips" && clipId.matches(path[1])) return Clip(path[1], position(url.queryParameter("t")))
             val slug = channel(path[0])
             return when {
                 path.size == 1 -> Channel(slug)
@@ -38,7 +38,7 @@ sealed interface KickLink {
                 path.size == 2 && path[1] == "clips" -> Channel(slug, ChannelTab.Clips)
                 path.size == 3 && path[1] == "videos" && videoId.matches(path[2]) ->
                     Video(slug, path[2], position(url.queryParameter("t")))
-                path.size == 3 && path[1] == "clips" && clipId.matches(path[2]) -> Clip(path[2])
+                path.size == 3 && path[1] == "clips" && clipId.matches(path[2]) -> Clip(path[2], position(url.queryParameter("t")))
                 else -> throw IllegalArgumentException("Open a Kick channel, VOD, or clip link.")
             }
         }
@@ -47,14 +47,14 @@ sealed interface KickLink {
             require(it !in reserved) { "Open a Kick channel, VOD, or clip link." }
         }
 
-        private fun position(value: String?): Long {
-            if (value.isNullOrBlank()) return 0
+        private fun position(value: String?): Long? {
+            if (value.isNullOrBlank()) return null
             val seconds = value.toLongOrNull() ?: Regex("(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)?")
                 .matchEntire(value.lowercase(Locale.ROOT))?.let { match ->
                     val parts = (1..3).map { match.groupValues[it].toLongOrNull() ?: 0 }
                     if (parts.any { it > 7 * 24 * 3600 }) return@let 0L
                     parts[0] * 3600 + parts[1] * 60 + parts[2]
-                } ?: 0
+                } ?: return null
             return seconds.coerceIn(0, 7 * 24 * 3600) * 1000
         }
     }

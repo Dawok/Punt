@@ -23,6 +23,7 @@ class ApiException(val status: Int, message: String) : IOException(message)
 data class EmoteCatalog(val emotes: Map<String, Emote>, val warnings: List<String>)
 
 class KickRepository(val http: OkHttpClient = defaultHttpClient()) {
+    suspend fun search(query: String): KickSearchResult = KickSearch.parse(getJson(KickSearch.url(query)))
     suspend fun videos(channel: KickChannel): RecordingPage = MediaParser.videos(getJson(MediaRequests.videos(channel.id)), channel.slug)
 
     suspend fun clips(channel: KickChannel, cursor: String? = null): RecordingPage =

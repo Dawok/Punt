@@ -9,6 +9,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,11 +49,19 @@ fun VideoPlayer(
     pip: Boolean = false,
     recording: ChannelRecording? = null,
     playbackError: String? = null,
+    saved: Boolean = false,
+    onSave: () -> Unit = {},
+    onBookmark: () -> Unit = {},
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val error = state.error ?: playbackError
     var controlsVisible by remember { mutableStateOf(true) }
     var qualityMenu by remember { mutableStateOf(false) }
+    var videoMenu by remember { mutableStateOf(false) }
+    var nativeView by remember { mutableStateOf<PlayerView?>(null) }
+    var hint by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(1_200); hint = null } }
+    PlayerGestures(nativeView, controller, recording != null) { hint = it }
     val view = LocalView.current
     DisposableEffect(view, state.playing, state.buffering, pip) {
         view.keepScreenOn = !pip && (state.playing || state.buffering)
@@ -61,6 +73,7 @@ fun VideoPlayer(
                 factory = { context -> PlayerView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     player = controller.player
+                    nativeView = this
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                     setShowNextButton(false)
                     setShowPreviousButton(false)
@@ -73,10 +86,10 @@ fun VideoPlayer(
                     it.setShowFastForwardButton(recording != null || channel.isDemo)
                     it.setShowRewindButton(recording != null || channel.isDemo)
                     it.useController = !pip
-                    it.controllerShowTimeoutMs = if (qualityMenu) 0 else 3_000
-                    if (pip) it.hideController() else if (qualityMenu) it.showController()
+                    it.controllerShowTimeoutMs = if (qualityMenu || videoMenu) 0 else 3_000
+                    if (pip) it.hideController() else if (qualityMenu || videoMenu) it.showController()
                 },
-                onRelease = { it.player = null },
+                onRelease = { it.player = null; if (nativeView === it) nativeView = null },
                 modifier = Modifier.fillMaxSize(),
             )
         } else if (!pip && !loading) {
@@ -107,6 +120,24 @@ fun VideoPlayer(
                         style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"))
                 }
                 Spacer(Modifier.weight(1f))
+                if (recording != null) Box {
+                    TextButton(onClick = { videoMenu = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("${state.speed}×", color = Color.White, fontSize = 11.sp)
+                        Icon(Icons.Default.MoreVert, "Video options", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                    DropdownMenu(videoMenu, { videoMenu = false }) {
+                        DropdownMenuItem(text = { Text(if (saved) "Remove from watch later" else "Save to watch later") },
+                            leadingIcon = { Icon(if (saved) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder, null) },
+                            onClick = { onSave(); videoMenu = false })
+                        DropdownMenuItem(text = { Text("Bookmark this moment") }, leadingIcon = { Icon(Icons.Default.BookmarkAdd, null) },
+                            onClick = { onBookmark(); hint = "Bookmark saved"; videoMenu = false })
+                        HorizontalDivider()
+                        listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { speed ->
+                            DropdownMenuItem(text = { Text("${speed}×" + if (state.speed == speed) " ✓" else "") },
+                                onClick = { controller.speed(speed); videoMenu = false })
+                        }
+                    }
+                }
                 if (channel.isLive || recording != null) Box {
                     TextButton(onClick = { qualityMenu = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
                         Text(state.selectedQuality, color = Color.White, fontSize = 11.sp)
@@ -136,6 +167,8 @@ fun VideoPlayer(
             color = Color.White, fontSize = 12.sp,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
                 .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
+        if (hint != null && !pip) Text(hint.orEmpty(), color = Color.White,
+            modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(8.dp)).padding(12.dp))
     }
 }
 
