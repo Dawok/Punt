@@ -18,8 +18,9 @@ import androidx.compose.ui.unit.sp
 import app.kickpocket.data.*
 
 @Composable
-internal fun ContinueWatching(preferences: AppPreferences, onOpen: (ChannelRecording, Long?) -> Unit) {
-    val entries = preferences.watchHistory.filterNot { it.completed }.take(10)
+internal fun ContinueWatching(preferences: AppPreferences, onOpen: (ChannelRecording, Long?) -> Unit,
+    onRemove: (ChannelRecording) -> Unit = {}) {
+    val entries = VideoLibrary.continueWatching(preferences.watchHistory).take(10)
     if (entries.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Continue watching", color = SubtleColor, fontSize = 12.sp)
@@ -27,8 +28,15 @@ internal fun ContinueWatching(preferences: AppPreferences, onOpen: (ChannelRecor
             items(entries, key = { VideoLibrary.key(it.recording) }) { progress ->
                 Surface(onClick = { onOpen(progress.recording, progress.positionMs) }, color = PanelColor,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), modifier = Modifier.width(190.dp)) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(progress.recording.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                    Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(progress.recording.title, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { onRemove(progress.recording) }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Default.Close, "Remove ${progress.recording.title} from Continue watching",
+                                    tint = SubtleColor, modifier = Modifier.size(18.dp))
+                            }
+                        }
                         Text("${progress.recording.channelSlug} · ${durationLabel(progress.positionMs / 1000)}", color = SubtleColor, fontSize = 11.sp)
                         if (progress.durationMs > 0) LinearProgressIndicator(
                             progress = { (progress.positionMs.toFloat() / progress.durationMs).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
@@ -44,7 +52,7 @@ internal fun LibraryDialog(preferences: AppPreferences, onOpen: (ChannelRecordin
     onRemoveHistory: (ChannelRecording) -> Unit, onRemoveSaved: (ChannelRecording) -> Unit,
     onRemoveBookmark: (VideoBookmark) -> Unit, onDismiss: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
-    val history = preferences.watchHistory.filterNot { it.completed }
+    val history = VideoLibrary.continueWatching(preferences.watchHistory)
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Your library") }, text = {
         Column(Modifier.fillMaxWidth().height(420.dp)) {
             SecondaryTabRow(tab) {

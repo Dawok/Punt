@@ -26,8 +26,9 @@ class KickRepository(val http: OkHttpClient = defaultHttpClient()) {
     suspend fun search(query: String): KickSearchResult = KickSearch.parse(getJson(KickSearch.url(query)))
     suspend fun videos(channel: KickChannel): RecordingPage = MediaParser.videos(getJson(MediaRequests.videos(channel.id)), channel.slug)
 
-    suspend fun clips(channel: KickChannel, cursor: String? = null): RecordingPage =
-        MediaParser.clips(getJson(MediaRequests.clips(channel.id, cursor)), channel.slug)
+    suspend fun clips(channel: KickChannel, cursor: String? = null, sort: ClipSort = ClipSort.MostViewed,
+        timeRange: ClipTimeRange = ClipTimeRange.All): RecordingPage =
+        MediaParser.clips(getJson(MediaRequests.clips(channel.id, cursor, sort, timeRange)), channel.slug)
 
     suspend fun clip(id: String): ChannelRecording = MediaParser.clip(getJson(MediaRequests.clip(id)))
 

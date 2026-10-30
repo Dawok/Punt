@@ -12,6 +12,7 @@ import app.kickpocket.data.RecentChannel
 import app.kickpocket.data.ChannelSuggestions
 import app.kickpocket.data.KickSearchState
 import app.kickpocket.data.ChannelRecording
+import app.kickpocket.data.VideoLibrary
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -110,6 +111,7 @@ fun HomeScreen(
     onSearch: (String) -> Unit = {},
     onLibrary: () -> Unit = {},
     onOpenSaved: (ChannelRecording, Long?) -> Unit = { _, _ -> },
+    onRemoveHistory: (ChannelRecording) -> Unit = {},
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var sortMenu by remember { mutableStateOf(false) }
@@ -214,8 +216,8 @@ fun HomeScreen(
                 }
             }
         }
-        if (preferences.watchHistory.any { !it.completed }) item(span = { GridItemSpan(maxLineSpan) }) {
-            ContinueWatching(preferences, onOpenSaved)
+        if (VideoLibrary.continueWatching(preferences.watchHistory).isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+            ContinueWatching(preferences, onOpenSaved, onRemoveHistory)
         }
         if (preferences.recentChannels.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -289,7 +291,7 @@ fun HomeScreen(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4).background(MaterialTheme.colorScheme.surfaceContainerHighest))
                             Column(Modifier.padding(12.dp)) {
-                                Text(category.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(category.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 Text("${compactCount(category.viewers)} watching", color = SubtleColor, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
                             }
                         }
@@ -328,7 +330,8 @@ fun HomeScreen(
 
 @Composable
 private fun ChannelTile(channel: ChannelCard, enabled: Boolean, onClick: () -> Unit, pinned: Boolean, onPin: () -> Unit) {
-    Surface(color = PanelColor, shape = RoundedCornerShape(12.dp), modifier = Modifier.clickable(enabled = enabled, onClick = onClick)) {
+    Surface(color = PanelColor, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()
+        .testTag("channel-tile-${channel.slug}").clickable(enabled = enabled, onClick = onClick)) {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
                 if (channel.thumbnail != null) AsyncImage(model = channel.thumbnail, contentDescription = null,
@@ -342,8 +345,8 @@ private fun ChannelTile(channel: ChannelCard, enabled: Boolean, onClick: () -> U
             }
             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(channel.username, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(channel.title, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (channel.category.isNotBlank()) Text(channel.category, color = SubtleColor, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(channel.title, fontSize = 12.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(channel.category, color = SubtleColor, fontSize = 11.sp, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

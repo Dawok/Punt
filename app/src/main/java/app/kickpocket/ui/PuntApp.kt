@@ -119,7 +119,8 @@ fun PuntApp(viewModel: StreamViewModel, browseModel: BrowseViewModel, pipState: 
                     onRefresh = browseModel::refresh, onMore = browseModel::more,
                     followedChannels = followed, onPin = viewModel::toggleFavorite,
                     updateVersion = updates.available?.versionName, search = search, onSearch = browseModel::search,
-                    onLibrary = { library = true }, onOpenSaved = viewModel::openSaved)
+                    onLibrary = { library = true }, onOpenSaved = viewModel::openSaved,
+                    onRemoveHistory = viewModel::removeHistory)
             } else {
                 StreamLayout(viewModel, state, preferences, landscape, fullscreen, pip,
                     onFullscreen = { fullscreen = !fullscreen }, onSettings = { settings = true }, onLogin = { login = true },

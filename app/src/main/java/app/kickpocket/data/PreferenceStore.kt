@@ -9,7 +9,9 @@ class PreferenceStore(context: Context) {
     private val storage = context.getSharedPreferences("preferences", Context.MODE_PRIVATE)
     private val mutable = MutableStateFlow(runCatching {
         AppJson.decodeFromString<AppPreferences>(storage.getString("preferences", null) ?: "{}")
-    }.getOrDefault(AppPreferences()))
+    }.getOrDefault(AppPreferences()).let { value ->
+        value.copy(watchHistory = value.watchHistory.filter { it.recording.kind == RecordingKind.Vod })
+    })
     val preferences = mutable.asStateFlow()
 
     @Synchronized

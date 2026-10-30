@@ -24,7 +24,19 @@ class FeatureLogicTest {
         assertTrue(finished.single().completed)
         assertEquals(0L, VideoLibrary.resume(finished, vod))
         assertTrue(VideoLibrary.checkpoint(emptyList(), clip, 0, 4_000, 100).isEmpty())
-        assertFalse(VideoLibrary.checkpoint(emptyList(), clip, 3_000, 4_000, 100).single().completed)
+        assertFalse(VideoLibrary.checkpoint(emptyList(), vod, 3_000, 4_000, 100).single().completed)
+    }
+
+    @Test fun clipsNeverResumeOrEnterContinueWatchingIncludingPreviouslySavedProgress() {
+        val oldClip = WatchProgress(clip, 20_000, 60_000, 100)
+        val video = WatchProgress(vod, 30_000, 120_000, 200)
+        val history = listOf(oldClip, video, video.copy(recording = vod.copy(id = "finished"), completed = true))
+        assertEquals(listOf(video), VideoLibrary.continueWatching(history))
+        assertEquals(0L, VideoLibrary.resume(history, clip))
+        assertEquals(30_000L, VideoLibrary.resume(history, vod))
+        assertEquals(history.drop(1), VideoLibrary.checkpoint(history, clip, 40_000, 60_000, 300))
+        assertTrue(VideoLibrary.checkpoint(emptyList(), clip, 40_000, 60_000, 300).isEmpty())
+        assertTrue(VideoLibrary.checkpoint(emptyList(), clip, 60_000, 60_000, 300, ended = true).isEmpty())
     }
 
     @Test fun historyAndSavedListsAreBoundedAndDoNotDuplicateEntries() {

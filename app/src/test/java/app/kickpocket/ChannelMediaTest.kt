@@ -55,6 +55,7 @@ class ChannelMediaTest {
         val url = MediaRequests.clips(10, cursor).toHttpUrl()
         assertEquals(cursor, url.queryParameter("cursor"))
         assertEquals("all", url.queryParameter("time"))
+        assertEquals("views", url.queryParameter("sort"))
         val playback = MediaRequests.playback(id).toHttpUrl()
         val request = SessionRequests.build(playback, "session_token=example-token", "test", MediaRequests.playbackBody)
         assertEquals("POST", request.method)
@@ -63,5 +64,28 @@ class ChannelMediaTest {
             assertThrows(IllegalArgumentException::class.java) { SessionRequests.build(bad.toHttpUrl(), "session_token=example-token", "test", "{}") }
         assertThrows(IllegalArgumentException::class.java) { MediaRequests.clip("../other") }
         assertThrows(IllegalArgumentException::class.java) { MediaRequests.playback("../other") }
+    }
+
+    @Test fun clipFiltersApplyToEveryPageAndChangingThemDropsThePreviousCursorAndResults() {
+        for (sort in ClipSort.entries) for (time in ClipTimeRange.entries) {
+            val url = MediaRequests.clips(10, "next+/=", sort, time).toHttpUrl()
+            assertEquals(sort.value, url.queryParameter("sort"))
+            assertEquals(time.value, url.queryParameter("time"))
+            assertEquals("next+/=", url.queryParameter("cursor"))
+        }
+        val clip = ChannelRecording("clip_ABC", RecordingKind.Clip, "channel", "Clip")
+        val vod = ChannelRecording(id, RecordingKind.Vod, "channel", "Video")
+        val state = ChannelLibraryState(tab = ChannelTab.Clips, videos = listOf(vod), clips = listOf(clip),
+            clipsCursor = "old-page", loaded = setOf(ChannelTab.Clips, ChannelTab.Videos), loading = true, error = "Old error")
+        assertSame(state, state.withClipFilters(state.clipSort, state.clipTimeRange))
+        val changed = state.withClipFilters(ClipSort.Newest, ClipTimeRange.Week)
+        assertEquals(ClipSort.Newest, changed.clipSort)
+        assertEquals(ClipTimeRange.Week, changed.clipTimeRange)
+        assertTrue(changed.clips.isEmpty())
+        assertNull(changed.clipsCursor)
+        assertFalse(changed.loading)
+        assertNull(changed.error)
+        assertEquals(setOf(ChannelTab.Videos), changed.loaded)
+        assertEquals(listOf(vod), changed.videos)
     }
 }

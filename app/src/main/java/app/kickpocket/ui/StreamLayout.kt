@@ -84,7 +84,7 @@ fun StreamLayout(
                 } else ChannelRecordings(library, state.recording?.id, viewModel::openRecording,
                     onRefresh = { viewModel.loadLibrary() }, onMore = { viewModel.loadLibrary(more = true) },
                     modifier = Modifier.weight(1f).fillMaxWidth(), saved = preferences.watchLater.map(VideoLibrary::key).toSet(),
-                    onSave = viewModel::saveRecording)
+                    onSave = viewModel::saveRecording, onClipFilters = viewModel::clipFilters)
             }
             Column(Modifier.layoutId(StreamPart.Error)) {
                 state.error?.takeIf { state.recording == null }?.let { ErrorCard(it) }

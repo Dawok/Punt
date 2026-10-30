@@ -4,13 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -23,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import app.kickpocket.data.ChannelLibraryState
 import app.kickpocket.data.ChannelRecording
 import app.kickpocket.data.ChannelTab
+import app.kickpocket.data.ClipSort
+import app.kickpocket.data.ClipTimeRange
 import app.kickpocket.data.VideoLibrary
 import coil3.compose.AsyncImage
 import java.time.Instant
@@ -51,20 +55,32 @@ internal fun ChannelRecordings(
     modifier: Modifier = Modifier,
     saved: Set<String> = emptySet(),
     onSave: (ChannelRecording) -> Unit = {},
+    onClipFilters: (ClipSort, ClipTimeRange) -> Unit = { _, _ -> },
 ) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.tab, state.clipSort, state.clipTimeRange) { listState.scrollToItem(0) }
     Column(modifier.background(AppBackground)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (state.tab == ChannelTab.Videos) "Past broadcasts" else "Recent clips",
+            Text(if (state.tab == ChannelTab.Videos) "Past broadcasts" else "Clips",
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             IconButton(onClick = onRefresh, enabled = !state.loading) {
                 Icon(Icons.Default.Refresh, "Refresh recordings", tint = SubtleColor)
+            }
+        }
+        if (state.tab == ChannelTab.Clips) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RecordingFilter(state.clipSort.label, ClipSort.entries.map { it.label }, "clip-sort", Modifier.weight(1f)) { index ->
+                onClipFilters(ClipSort.entries[index], state.clipTimeRange)
+            }
+            RecordingFilter(state.clipTimeRange.label, ClipTimeRange.entries.map { it.label }, "clip-time-range", Modifier.weight(1f)) { index ->
+                onClipFilters(state.clipSort, ClipTimeRange.entries[index])
             }
         }
         if (state.loading && state.items.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(Modifier.size(28.dp), color = KickGreen, strokeWidth = 2.dp)
             }
-        } else LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("channel-recordings"),
+        } else LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("channel-recordings"), state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (state.error != null) item {
@@ -86,6 +102,23 @@ internal fun ChannelRecordings(
                     if (state.loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                     else Text("Load more clips")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecordingFilter(label: String, choices: List<String>, tag: String, modifier: Modifier, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier) {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth().testTag(tag),
+            contentPadding = PaddingValues(horizontal = 12.dp)) {
+            Text(label, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ExpandMore, null, Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded, { expanded = false }) {
+            choices.forEachIndexed { index, choice ->
+                DropdownMenuItem(text = { Text(choice) }, onClick = { expanded = false; onSelect(index) })
             }
         }
     }

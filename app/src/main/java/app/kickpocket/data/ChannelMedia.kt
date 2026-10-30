@@ -31,6 +31,11 @@ data class ChannelRecording(
 
 data class RecordingPage(val items: List<ChannelRecording>, val cursor: String? = null)
 
+enum class ClipSort(val label: String, val value: String) { MostViewed("Most viewed", "views"), Newest("Newest", "date") }
+enum class ClipTimeRange(val label: String, val value: String) {
+    Day("Past 24 hours", "day"), Week("Past week", "week"), Month("Past month", "month"), All("All time", "all")
+}
+
 data class ChannelLibraryState(
     val tab: ChannelTab = ChannelTab.Live,
     val videos: List<ChannelRecording> = emptyList(),
@@ -39,8 +44,15 @@ data class ChannelLibraryState(
     val loaded: Set<ChannelTab> = emptySet(),
     val loading: Boolean = false,
     val error: String? = null,
+    val clipSort: ClipSort = ClipSort.MostViewed,
+    val clipTimeRange: ClipTimeRange = ClipTimeRange.All,
 ) {
     val items get() = if (tab == ChannelTab.Videos) videos else clips
+
+    fun withClipFilters(sort: ClipSort, timeRange: ClipTimeRange): ChannelLibraryState =
+        if (sort == clipSort && timeRange == clipTimeRange) this
+        else copy(clipSort = sort, clipTimeRange = timeRange, clips = emptyList(), clipsCursor = null,
+            loaded = loaded - ChannelTab.Clips, loading = false, error = null)
 }
 
 object MediaRequests {
@@ -51,10 +63,11 @@ object MediaRequests {
         return "https://web.kick.com/api/v1/channels/$channelId/videos"
     }
 
-    fun clips(channelId: Long, cursor: String? = null): String {
+    fun clips(channelId: Long, cursor: String? = null, sort: ClipSort = ClipSort.MostViewed,
+        timeRange: ClipTimeRange = ClipTimeRange.All): String {
         require(channelId > 0)
         return "https://web.kick.com/api/v1/channels/$channelId/clips".toHttpUrl().newBuilder()
-            .addQueryParameter("sort", "date").addQueryParameter("time", "all")
+            .addQueryParameter("sort", sort.value).addQueryParameter("time", timeRange.value)
             .apply { cursor?.let { addQueryParameter("cursor", it) } }.build().toString()
     }
 

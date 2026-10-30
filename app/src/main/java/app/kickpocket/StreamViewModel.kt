@@ -14,6 +14,8 @@ import app.kickpocket.data.RecentChannel
 import app.kickpocket.data.ChannelLibraryState
 import app.kickpocket.data.ChannelRecording
 import app.kickpocket.data.ChannelTab
+import app.kickpocket.data.ClipSort
+import app.kickpocket.data.ClipTimeRange
 import app.kickpocket.data.KickLink
 import app.kickpocket.data.RecordingKind
 import app.kickpocket.data.ApiException
@@ -206,6 +208,15 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         } else if (tab !in mutableLibrary.value.loaded && libraryJob?.isActive != true) loadLibrary()
     }
 
+    fun clipFilters(sort: ClipSort, timeRange: ClipTimeRange) {
+        val current = mutableLibrary.value
+        if (current.tab != ChannelTab.Clips || (current.clipSort == sort && current.clipTimeRange == timeRange)) return
+        libraryJob?.cancel()
+        libraryJob = null
+        mutableLibrary.value = current.withClipFilters(sort, timeRange)
+        loadLibrary()
+    }
+
     fun loadLibrary(more: Boolean = false) {
         val channel = mutable.value.channel ?: return
         val current = mutableLibrary.value
@@ -217,8 +228,10 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         mutableLibrary.update { it.copy(loading = true, error = null) }
         libraryJob = viewModelScope.launch {
             try {
-                val page = if (tab == ChannelTab.Videos) repository.videos(channel) else repository.clips(channel, cursor)
-                if (generation != requestGeneration || mutableLibrary.value.tab != tab) return@launch
+                val page = if (tab == ChannelTab.Videos) repository.videos(channel)
+                    else repository.clips(channel, cursor, current.clipSort, current.clipTimeRange)
+                if (generation != requestGeneration || mutableLibrary.value.tab != tab ||
+                    mutableLibrary.value.clipSort != current.clipSort || mutableLibrary.value.clipTimeRange != current.clipTimeRange) return@launch
                 mutableLibrary.update {
                     val entries = ((if (more) it.items else emptyList()) + page.items).distinctBy { entry -> entry.id }
                     if (tab == ChannelTab.Videos) it.copy(videos = entries, loaded = it.loaded + tab, loading = false)
@@ -227,7 +240,8 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
-                if (generation == requestGeneration && mutableLibrary.value.tab == tab)
+                if (generation == requestGeneration && mutableLibrary.value.tab == tab &&
+                    mutableLibrary.value.clipSort == current.clipSort && mutableLibrary.value.clipTimeRange == current.clipTimeRange)
                     mutableLibrary.update { it.copy(loading = false, error = error.message ?: "Could not load recordings.") }
             }
         }
@@ -241,8 +255,11 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     fun bookmarkRecording() {
         mutable.value.recording?.let { app.preferences.bookmark(it, player.player.currentPosition) }
     }
-    fun removeHistory(recording: ChannelRecording) = app.preferences.update {
-        it.copy(watchHistory = it.watchHistory.filterNot { progress -> VideoLibrary.key(progress.recording) == VideoLibrary.key(recording) })
+    fun removeHistory(recording: ChannelRecording) {
+        player.forgetHistory(recording)
+        app.preferences.update {
+            it.copy(watchHistory = it.watchHistory.filterNot { progress -> VideoLibrary.key(progress.recording) == VideoLibrary.key(recording) })
+        }
     }
     fun removeBookmark(bookmark: VideoBookmark) = app.preferences.update { it.copy(bookmarks = it.bookmarks - bookmark) }
     fun chatFilters(users: List<String>, keywords: List<String>, repeats: Boolean, mentions: Boolean) = app.preferences.update {

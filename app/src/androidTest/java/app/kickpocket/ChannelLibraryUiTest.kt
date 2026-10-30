@@ -54,4 +54,22 @@ class ChannelLibraryUiTest {
         compose.runOnIdle { state.value = state.value.copy(error = null) }
         compose.onNodeWithText("No past broadcasts available.").assertIsDisplayed()
     }
+
+    @Test fun clipSortAndTimeRangeRemainSelectableDuringLoadingAndDoNotAffectVods() {
+        val state = mutableStateOf(ChannelLibraryState(tab = ChannelTab.Clips, loading = true))
+        compose.setContent { PuntTheme {
+            ChannelRecordings(state.value, null, {}, {}, {}, Modifier.height(420.dp), onClipFilters = { sort, time ->
+                state.value = state.value.withClipFilters(sort, time)
+            })
+        } }
+        compose.onNodeWithTag("clip-sort").performClick()
+        compose.onNodeWithText("Newest").performClick()
+        assertEquals(ClipSort.Newest, state.value.clipSort)
+        compose.onNodeWithTag("clip-time-range").performClick()
+        compose.onNodeWithText("Past week").performClick()
+        assertEquals(ClipTimeRange.Week, state.value.clipTimeRange)
+        compose.runOnIdle { state.value = state.value.copy(tab = ChannelTab.Videos) }
+        compose.onNodeWithTag("clip-sort").assertDoesNotExist()
+        compose.onNodeWithTag("clip-time-range").assertDoesNotExist()
+    }
 }

@@ -12,18 +12,23 @@ data class VideoBookmark(val recording: ChannelRecording, val positionMs: Long, 
 object VideoLibrary {
     fun key(recording: ChannelRecording): String = "${recording.kind}:${recording.id}"
 
+    fun continueWatching(history: List<WatchProgress>): List<WatchProgress> =
+        history.filter { it.recording.kind == RecordingKind.Vod && !it.completed }
+
     fun checkpoint(history: List<WatchProgress>, recording: ChannelRecording, positionMs: Long,
         durationMs: Long, now: Long, ended: Boolean = false): List<WatchProgress> {
+        val videos = history.filter { it.recording.kind == RecordingKind.Vod }
+        if (recording.kind != RecordingKind.Vod) return videos
         val duration = durationMs.coerceAtLeast(0)
         val position = positionMs.coerceAtLeast(0).let { if (duration > 0) it.coerceAtMost(duration) else it }
-        if (position < 3_000 && !ended && history.none { key(it.recording) == key(recording) }) return history
+        if (position < 3_000 && !ended && videos.none { key(it.recording) == key(recording) }) return videos
         val completed = ended || (duration > 0 && duration - position <= minOf(10_000, duration / 20))
         val entry = WatchProgress(recording.copy(playbackUrl = null), position, duration, now, completed)
-        return (listOf(entry) + history.filterNot { key(it.recording) == key(recording) }).take(50)
+        return (listOf(entry) + videos.filterNot { key(it.recording) == key(recording) }).take(50)
     }
 
     fun resume(history: List<WatchProgress>, recording: ChannelRecording): Long =
-        history.firstOrNull { key(it.recording) == key(recording) && !it.completed }?.positionMs ?: 0
+        continueWatching(history).firstOrNull { key(it.recording) == key(recording) }?.positionMs ?: 0
 
     fun toggleSaved(saved: List<ChannelRecording>, recording: ChannelRecording): List<ChannelRecording> =
         if (saved.any { key(it) == key(recording) }) saved.filterNot { key(it) == key(recording) }

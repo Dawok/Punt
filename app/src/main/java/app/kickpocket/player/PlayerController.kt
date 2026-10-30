@@ -90,6 +90,7 @@ class PlayerController(private val context: Context, private val preferences: Pr
     }
 
     private var engine: ExoPlayer? = null
+    private var forgottenHistoryKey: String? = null
     val player: ExoPlayer get() = engine ?: createPlayer().also {
         engine = it
         watchNetwork()
@@ -242,6 +243,7 @@ class PlayerController(private val context: Context, private val preferences: Pr
     fun load(url: String, live: Boolean, title: String = "Stream", artist: String = "Punt", startPositionMs: Long = 0,
         recording: ChannelRecording? = null) {
         checkpoint()
+        forgottenHistoryKey = null
         activeRecording = recording?.copy(playbackUrl = null)
         lastCheckpointAt = SystemClock.elapsedRealtime()
         cancelRecovery()
@@ -274,11 +276,18 @@ class PlayerController(private val context: Context, private val preferences: Pr
 
     private fun checkpoint(ended: Boolean = false) {
         val recording = activeRecording ?: return
+        if (VideoLibrary.key(recording) == forgottenHistoryKey) return
         val current = engine ?: return
         if (current.mediaItemCount == 0) return
         if (current.currentMediaItem?.mediaId != VideoLibrary.key(recording)) return
         preferences.checkpoint(recording, current.currentPosition, current.duration.takeIf { it != C.TIME_UNSET } ?: 0, ended)
         lastCheckpointAt = SystemClock.elapsedRealtime()
+    }
+
+    // Removing the current video must survive pause/stop checkpoints until it is opened again.
+    fun forgetHistory(recording: ChannelRecording) {
+        if (activeRecording?.let(VideoLibrary::key) == VideoLibrary.key(recording))
+            forgottenHistoryKey = VideoLibrary.key(recording)
     }
 
     fun speed(value: Float, persist: Boolean = true) {
